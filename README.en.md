@@ -59,10 +59,24 @@ Other flags: `node <script> --help`, or just read [SKILL.md](SKILL.md).
 
 ---
 
+## What you might be searching for
+
+Cross-machine agents · let two computers' AIs talk to each other · agent connector · agent-to-agent (A2A) · agent interop beyond MCP · remote agent without a public IP · Claude Code / Codex / OpenClaw across machines · remote agent daemon · multi-machine automation · agents asking each other
+
+---
+
 ## Security
 
 > The `LINK` in a card is **full control of that machine's daemon**. Treat it like a key — don't pass it around.
 > If it leaks, rotate your identity with the exact passphrase `/agent-penpal reset pair` (the old link dies immediately; every peer needs your new card).
+
+---
+
+## Disclaimer
+
+**Not affiliated with, or endorsed by, the Paseo project.**
+
+agent-penpal is an independent third-party tool. It only **calls** the Paseo CLI as a subprocess; this repository contains **no Paseo code**. Paseo is licensed under the Apache License 2.0 (© Mohamed Boudra), which grants **no trademark rights** — "Paseo" is used here only to describe the dependency.
 
 ---
 

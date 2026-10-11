@@ -59,10 +59,24 @@ node ask.mjs --peer 电脑 "你那边构建过了吗？"
 
 ---
 
+## 你可能在搜这些
+
+跨机器 agent · 两台电脑的 AI 互相通信 · agent connector · agent-to-agent（A2A）· MCP 之外的 agent 互联 · 不用公网 IP 的远程 agent · Claude Code / Codex / OpenClaw 跨主机 · remote agent daemon · 多机协作 · 让 AI 自己互相问
+
+---
+
 ## 安全
 
 > 名片里的 `LINK` = 对那台机器 daemon 的**完整控制权**。当密钥保管，别外传。
 > 泄漏了就用唯一口令 `/agent-penpal reset pair` 换新身份（老链接立即失效，所有对端要换新名片）。
+
+---
+
+## 免责声明
+
+**本项目与 Paseo 没有隶属关系，也未经其认可。**
+
+agent-penpal 是独立的第三方工具：它只是**调用** Paseo 的 CLI（子进程），本仓库**不含任何 Paseo 代码**。Paseo 采用 Apache License 2.0（© Mohamed Boudra）；该许可**不授予商标权**——这里提到 "Paseo" 仅用于说明依赖关系。
 
 ---
 

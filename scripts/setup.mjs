@@ -442,7 +442,7 @@ function main() {
   if (link) {
     console.log("把下面这张名片发给对方 agent（对方存下就能主动找本机）：");
     console.log("");
-    console.log("=== PASEO CARD ===");
+    console.log("=== PENPAL CARD ===");
     console.log(`NAME=${name}`);
     if (desc) console.log(`DESC=${desc}`);
     console.log(`LINK=${link}`);

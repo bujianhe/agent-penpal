@@ -68,6 +68,48 @@ const FILE_PEERS = path.join(HOME_DIR, ".paseo-peers.json");
 function peerKey(link, agent) {
   return `${link}|${agent}`;
 }
+
+// 同一个窗口有两种写法：短 ID（7 位 hex，如 9e1e401）和全 UUID（9e1e4015-eb33-…），
+// 短的就是全 ID 的前缀。不认这一点的话，同一个窗口在名册里会变成两条——后果不只是列表难看：
+// `--peer <名字>` 会命中两条，于是**按名字发消息彻底用不了**，只能退回 `--agent <窗口ID>`。
+// 只把 6-8 位**纯 hex** 当"短 ID 形状"；全 UUID 带连字符，不会被误判。跨 link 永不匹配。
+function sameWindowAgent(a, b) {
+  const x = String(a || "").toLowerCase();
+  const y = String(b || "").toLowerCase();
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const shortShape = (s) => /^[0-9a-f]{6,8}$/.test(s);
+  return (shortShape(x) && y.startsWith(x)) || (shortShape(y) && x.startsWith(y));
+}
+
+// 写进名册，并顺手把"同一个窗口"的重复条目并掉。
+// 键统一用**全 ID**（短 ID 只是前缀，用它作键会让下次换个写法又变一条）；
+// name/desc 以 lastUsedAt 较新的那次为准（原有的"改名就地覆盖"语义不变）。
+function putPeer(reg, entry) {
+  const dupKey = Object.keys(reg).find(
+    (k) => reg[k].link === entry.link && sameWindowAgent(reg[k].agent, entry.agent),
+  );
+  if (!dupKey) {
+    reg[peerKey(entry.link, entry.agent)] = entry;
+    return entry;
+  }
+  const a = reg[dupKey];
+  const b = entry;
+  const [newer, older] = (b.lastUsedAt || 0) >= (a.lastUsedAt || 0) ? [b, a] : [a, b];
+  const canonical =
+    String(newer.agent || "").length >= String(older.agent || "").length ? newer.agent : older.agent;
+  delete reg[dupKey];
+  const merged = {
+    name: newer.name || older.name || null,
+    link: entry.link,
+    agent: canonical,
+    desc: newer.desc || older.desc || null,
+    lastUsedAt: Math.max(a.lastUsedAt || 0, b.lastUsedAt || 0),
+  };
+  reg[peerKey(entry.link, canonical)] = merged;
+  return merged;
+}
+
 function readRegistry() {
   let raw;
   try {
@@ -79,29 +121,28 @@ function readRegistry() {
   const reg = {};
   for (const [k, v] of Object.entries(raw)) {
     if (!v || typeof v !== "object" || !v.link || !v.agent) continue;
-    // 兼容旧格式（按名字作键、值里没 name）：自动迁移成按 link|agent 作键
-    reg[peerKey(v.link, v.agent)] = {
+    // 兼容旧格式（按名字作键、值里没 name）：迁移成按 link|agent 作键；
+    // 同一个窗口的短/全 ID 重复条目也在这一步并掉（存量脏数据下次读写就自愈）
+    putPeer(reg, {
       name: (typeof v.name === "string" && v.name) || (k.includes("|") ? null : k),
       link: v.link,
       agent: v.agent,
       desc: v.desc || null,
       lastUsedAt: v.lastUsedAt || 0,
-    };
+    });
   }
   return reg;
 }
 function savePeer(name, link, agent, desc = null) {
   if (!name) return false;
   const reg = readRegistry();
-  const key = peerKey(link, agent);
-  const prev = reg[key] || {};
-  reg[key] = {
-    name: name || prev.name || null, // 改名：同一身份直接覆盖名字，不产生第二条
+  putPeer(reg, {
+    name, // 改名：同一身份直接覆盖名字，不产生第二条
     link,
     agent,
-    desc: desc || prev.desc || null,
+    desc,
     lastUsedAt: Date.now(),
-  };
+  });
   try {
     fs.writeFileSync(FILE_PEERS, JSON.stringify(reg, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
     return true;
@@ -155,7 +196,7 @@ function run(cmd, args, { env = {}, shell = false, timeout = 60000 } = {}) {
 // 位置参数识别：对方名片两行照抄时自动当坐标用
 const OFFER_LINK_RE = /^https?:\/\/\S*(?:paseo\.sh|#offer=)/i;
 const AGENT_ID_RE = /^(?:[0-9a-f]{6,8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-// 名片整块（=== PASEO CARD === / === 名片 === 包边可有可无）直接粘进来也认
+// 名片整块直接粘进来也认——只认 NAME=/DESC=/LINK=/AGENT= 四行，包边（PENPAL CARD / 旧名 PASEO CARD / 更旧的"名片"）可有可无
 const CARD_LINK_RE = /LINK=(https?:\/\/\S+)/i;
 const CARD_AGENT_RE = /AGENT=([0-9a-zA-Z_-]{4,})/;
 const CARD_NAME_RE = /NAME=(.+)/i;
@@ -271,15 +312,14 @@ function resolveLink(args) {
     // 先查本机名册（按名片里的名字匹配；条目身份键是 link|agent），再退回 GUI 别名（peers.mjs）
     const values = Object.values(readRegistry());
     const want = String(args.peer).trim().toLowerCase();
-    // 先精确匹配名字；没有再模糊；**任何一种匹配到多台都报错**（同一仓库多会话可能同名，不默默取第一个）
+    // 先精确匹配名字；没有再模糊。命中多台时**不猜**——但也不当错误一扔了事：
+    // 交给调用方列成候选清单，让人（或大模型）挑一台再用 --agent 重发。
     const exact = values.filter((v) => (v.name || "").trim().toLowerCase() === want);
     const matches = exact.length
       ? exact
       : values.filter((v) => (v.name || "").toLowerCase().includes(want));
     if (matches.length > 1) {
-      return {
-        error: `名册里 "${args.peer}" 匹配到多台：${matches.map((v) => `${v.name}(${v.agent})`).join("、")}——用 --agent <窗口ID> 指定，或给对方各窗口起不同名字。`,
-      };
+      return { ambiguous: matches };
     }
     const hit = matches[0] || null;
     if (hit && hit.link && hit.agent) return { link: hit.link, agent: hit.agent, source: `名册 "${args.peer}"` };
@@ -298,7 +338,7 @@ function resolveLink(args) {
 // 实现上直接把本脚本按单张名片再拉起来（子进程），复用单发现有的 连接检查/发送/拉答复/入册 全套逻辑。
 async function fanOut(args, targets, message) {
   const self = fileURLToPath(import.meta.url);
-  const cardOf = (t) => `=== PASEO CARD ===\nNAME=${t.name}\n${t.desc ? `DESC=${t.desc}\n` : ""}LINK=${t.link}\nAGENT=${t.agent}\n==================`;
+  const cardOf = (t) => `=== PENPAL CARD ===\nNAME=${t.name}\n${t.desc ? `DESC=${t.desc}\n` : ""}LINK=${t.link}\nAGENT=${t.agent}\n==================`;
   const extra = [];
   if (args.from) extra.push("--from", args.from);
   if (args.selfAgent) extra.push("--self-agent", args.selfAgent);
@@ -392,10 +432,13 @@ function main() {
   const from = args.from || process.env.PASEO_SELF || readFileTrim(FILE_SELF) || null;
   let message = args.message;
   if (args.file) message = fs.readFileSync(args.file, "utf8").trim();
+  let handshake = false;
   if (!message && !args.replies) {
-    // 只发名片 = 连接：补一条默认握手语（约定见 SKILL.md），别干等着失败
+    // 只发名片 = 连接：补一条默认握手语（约定见 SKILL.md），别干等着失败。
+    // **先不打印**——留到真要发送时再打。否则"没发出去"（比如 --peer 重名）的场景下，
+    // 这行会排在警告前面，反而像是马上就要发了，误导调用方。
     message = "连接成功，请回复确认。（Connected. Please confirm.）";
-    console.log(`→ 没带消息，发默认握手语：${message}`);
+    handshake = true;
   }
 
   // 群发：贴了 ≥2 张名片 → 并行扇出（每台一条独立的"发送→等→拉"流水线，互不阻塞）
@@ -405,12 +448,26 @@ function main() {
       process.exitCode = 1;
       return;
     }
+    if (handshake) console.log(`→ 没带消息，发默认握手语：${message}`);
     void fanOut(args, args.targets, message);
     return;
   }
 
   // 名册命中会连窗口ID一起带出来，所以先解析链接、再定 agent
-  const { link, source, error, agent: linkAgent } = resolveLink(args);
+  const { link, source, error, agent: linkAgent, ambiguous } = resolveLink(args);
+  if (ambiguous) {
+    // 重名不是错误，是"要你挑一台"——列成候选让人/模型选，绝不静默取第一条。
+    // 退出码按约定走 0（用户定的：候选不是错误）。所以**必须靠输出说清楚没发出去**，
+    // 调用方别只看退出码就回报"已发送"。
+    const list = ambiguous.slice().sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+    console.log(`⚠ 名册里有 ${list.length} 台叫 "${args.peer}"，这条消息【没有发出去】。挑一台，用 --agent <窗口ID> 重发：\n`);
+    list.forEach((v, i) => {
+      console.log(`  ${i + 1}) ${v.name}   ${v.agent}   （最后使用 ${peerAge(v.lastUsedAt) || "未知"}）`);
+      if (v.desc) console.log(`      ${v.desc}`);
+    });
+    console.log(`\n想以后省掉这步：给对方各窗口起不同名字（在对方那边跑 setup.mjs --name <新名字> 重出名片）。`);
+    return;
+  }
   if (error) {
     console.error(error);
     process.exitCode = 1;
@@ -466,7 +523,7 @@ function main() {
       if (selfLink) {
         // DESC 来源：--self-desc 单条覆盖（带"当前在处理…"这类临时信息）> ~/.paseo-self-desc（职责，setup 写的）
         const selfDesc = args.selfDesc ? String(args.selfDesc).replace(/\s+/g, " ").trim().slice(0, 200) : readFileTrim(FILE_SELF_DESC);
-        card = `=== PASEO CARD ===\n${from ? `NAME=${from}\n` : ""}${selfDesc ? `DESC=${selfDesc}\n` : ""}LINK=${selfLink}\nAGENT=${selfAgent}\n==================\n`;
+        card = `=== PENPAL CARD ===\n${from ? `NAME=${from}\n` : ""}${selfDesc ? `DESC=${selfDesc}\n` : ""}LINK=${selfLink}\nAGENT=${selfAgent}\n==================\n`;
       } else {
         console.log("提示：本机链接生成失败（可设 PASEO_SELF_LINK / PASEO_SELF_HOME，或先跑 setup.mjs），本条未附名片。");
       }
@@ -554,6 +611,7 @@ function main() {
   }
 
   const fireAndForget = args.asyncMode || args.noWait;
+  if (handshake) console.log(`→ 没带消息，发默认握手语：${message}`);
   console.log(
     fireAndForget
       ? `→ 发送给窗口 ${agent}（链接来源：${source}，${link.length} 字符），发完就走…`
