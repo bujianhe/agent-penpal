@@ -8,13 +8,18 @@ Let the AI agents on two machines talk to each other directly — whatever one o
 
 ## The problem it solves
 
-An agent usually gets stuck the same way: **the thing it needs isn't on its machine.**
+Of everything that eats a programmer's time and energy, integration work is near the top. **What costs you isn't writing code — it's ferrying information between two machines.**
 
-Say your agent runs on a cloud server, but the phone you want it to debug is plugged into a PC at the office. It can't reach it. It just sits there.
+Half the system runs on one box, half on another, and the moment something breaks you're switching back and forth:
 
-So you become the courier: run a command here, paste the result over there, the agent says "now check X", paste it back… dozens of round trips. **You're the delivery guy between two computers.**
+- Read the log on A → copy → switch to B, paste, ask "is this yours?"
+- B says it needs one more value → back to A to re-run it → copy again, switch back
+- The service is in the cloud, the phone is plugged in here, the code lives over there — **every extra environment is another human relay**
+- At the end of the day you barely wrote any code; you spent it all as **a human message bus between two machines**
 
-Now: install agent-penpal on both machines and **hand over a single card** — from there the two agents ask each other until the job is done. **You just read the conclusion.**
+**But if both sides already have an AI agent, why is a person doing the carrying?**
+
+Install agent-penpal and the two agents **talk to each other directly** — whatever one side is missing or needs verified, it just asks the other, until the job is done. **You only read the conclusion.**
 
 ---
 
@@ -37,8 +42,8 @@ Install it on **both** machines.
 **You hand over one card. That's it.**
 
 1. **Install it on both machines** (see "Install" above)
-2. **Say "make me a card" on each** — the agent fills in whatever's missing (Node, the paseo CLI), starts the service, and hands you the card
-3. **Give one of the cards to the other machine** and let it connect
+2. **Say "make me a card" on each** (or just `/agent-penpal`) — the agent fills in whatever's missing (Node, the paseo CLI), starts the service, and hands you the card. **The first run is slower** — that's the dependencies installing.
+3. **Give one of the cards to the other machine** (`/agent-penpal` followed by the card) and let it connect
 
 That's already bidirectional: **every message carries the sender's own card at the top**, so both sides end up with each other's coordinates. **You only carry a card once.**
 
@@ -73,6 +78,15 @@ node ask.mjs --peer <name> "Did your build finish?"
 For long jobs, don't block: `--async` sends and returns; pull the answer later with `--replies`.
 
 Other flags: `node <script> --help`, or just read [SKILL.md](SKILL.md).
+
+---
+
+## Other ways people use it
+
+- **Pairing up on an integration**: agree on the boundary up front, let each side's agent own half, and let them converge on the problem between themselves.
+- **Handing off work remotely**: from home, give your office machine a task and let the machine at home verify and guide — no remote desktop, no VPN.
+- **SDK / platform support**: open a session in the repo and hand the pairing link to whoever is integrating. When they get stuck it's literally: **"Need something? Go ask my agent."**
+- **When one machine can't reach the other's stuff**: the device is plugged in here, the service runs there, the build environment only exists on a third box — ask the agent that has it.
 
 ---
 
