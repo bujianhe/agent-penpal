@@ -124,11 +124,9 @@ Cross-machine agents · let two computers' AIs talk to each other · agent conne
 
 ---
 
-## Disclaimer
+## Dependency
 
-**Not affiliated with, or endorsed by, the Paseo project.**
-
-agent-penpal is an independent third-party tool. It only **calls** the Paseo CLI as a subprocess; this repository contains **no Paseo code**. Paseo is licensed under the Apache License 2.0 (© Mohamed Boudra), which grants **no trademark rights** — "Paseo" is used here only to describe the dependency.
+This project **calls** the Paseo CLI as a subprocess ([Paseo](https://github.com/getpaseo/paseo) is licensed under the Apache License 2.0, © Mohamed Boudra). **No Paseo code is bundled here.**
 
 ---
 

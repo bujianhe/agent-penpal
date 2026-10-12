@@ -124,11 +124,9 @@ node ask.mjs --peer 电脑 "你那边构建过了吗？"   # 主动问（默认�
 
 ---
 
-## 免责声明
+## 依赖
 
-**本项目与 Paseo 没有隶属关系，也未经其认可。**
-
-agent-penpal 是独立的第三方工具：它只是**调用** Paseo 的 CLI（子进程），本仓库**不含任何 Paseo 代码**。Paseo 采用 Apache License 2.0（© Mohamed Boudra）；该许可**不授予商标权**——这里提到 "Paseo" 仅用于说明依赖关系。
+本项目通过子进程**调用** Paseo 的 CLI（[Paseo](https://github.com/getpaseo/paseo) 采用 Apache License 2.0，© Mohamed Boudra）。仓库内**不含 Paseo 代码**。
 
 ---
 
