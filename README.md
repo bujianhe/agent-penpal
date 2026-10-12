@@ -25,15 +25,22 @@
 
 ## 安装
 
+**方式一：一条命令（覆盖 20+ 个 agent：Claude Code / Codex / Cursor / Cline / Copilot…）**
+
 ```bash
-# 方式一：插件市场（推荐）
+npx skills add bujianhe/agent-penpal
+```
+
+**方式二：Claude Code 插件市场**
+
+```bash
 claude plugin marketplace add bujianhe/agent-penpal
 claude plugin install agent-penpal@agent-penpal
 ```
 
-或**方式二：手动拷目录**——把 `agent-penpal/` 整个放进你的 agent 的 skill 目录（Claude Code 是 `~/.claude/skills/agent-penpal/`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把 [SKILL.md](SKILL.md) 的正文贴进去一样生效。
+**方式三：手动拷目录**——把 `agent-penpal/` 整个放进你的 agent 的 skill 目录（Claude Code 是 `~/.claude/skills/agent-penpal/`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把 [SKILL.md](SKILL.md) 的正文贴进去一样生效。
 
-两边机器都要装。
+**两边机器都要装。**
 
 ---
 

@@ -25,13 +25,20 @@ Install agent-penpal and the two agents **talk to each other directly** — what
 
 ## Install
 
+**Option 1 — one command (covers 20+ agents: Claude Code / Codex / Cursor / Cline / Copilot…)**
+
 ```bash
-# Option 1 — plugin marketplace (recommended)
+npx skills add bujianhe/agent-penpal
+```
+
+**Option 2 — Claude Code plugin marketplace**
+
+```bash
 claude plugin marketplace add bujianhe/agent-penpal
 claude plugin install agent-penpal@agent-penpal
 ```
 
-Or **option 2 — copy the folder** into your agent's skills directory (for Claude Code, `~/.claude/skills/agent-penpal/`). For agents with no skills mechanism (plain AGENTS.md / system prompt), pasting the body of [SKILL.md](SKILL.md) works just as well.
+**Option 3 — copy the folder** into your agent's skills directory (for Claude Code, `~/.claude/skills/agent-penpal/`). For agents with no skills mechanism (plain AGENTS.md / system prompt), pasting the body of [SKILL.md](SKILL.md) works just as well.
 
 Install it on **both** machines.
 
