@@ -13,6 +13,8 @@ description: 让两台机器上的 agent（Claude Code / Codex / OpenClaw）跨�
 
 ## 装到一台新机器（agent 自己动手，三条）
 
+> **第 1 条是人做的**（把 skill 放上去）。**第 2、3 条是你自己要做的**——缺什么装什么，**别让用户去装**。装完接着往下走，不要停下来问"要不要我装"。
+
 1. **放 skill**：二选一——
    - **插件市场装**：`claude plugin marketplace add bujianhe/agent-penpal` → `claude plugin install agent-penpal@agent-penpal`
    - **手动拷目录**：整个 `agent-penpal/` 目录放进该 agent 的 skill 目录——Claude Code 是 `~/.claude/skills/agent-penpal/`（Windows：`%USERPROFILE%\.claude\skills\agent-penpal\`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把本文贴进去一样生效。

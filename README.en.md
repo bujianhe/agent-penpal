@@ -34,14 +34,15 @@ Install it on **both** machines.
 
 ## Three steps
 
-1. **Install on both machines** (see "Install" above)
-2. **Make sure the paseo CLI is available**: `npm i -g @getpaseo/cli`
-   **If you already run the Paseo desktop app, its CLI is bundled — skip this step.** (The scripts find it automatically.)
-3. **Run `setup.mjs --name <machine>` once per machine** to generate a card, then send the two cards to each other
+**You do two things. The agent does the rest.**
 
-After that you don't type anything: routing, the peer registry, and multi-turn back-and-forth are all automatic.
+1. **Install it on both machines** (see "Install" above)
+2. **Tell it "make me a card"** — the agent fills in whatever's missing (Node if needed, the paseo CLI if needed), starts the service, and hands you the card
+3. **Send the two cards to each other** (copy and paste)
 
-**Requires**: Node 21+.
+From there the agents ask each other until the job is done — **you just read the conclusion.**
+
+> Step 2 is the point: **you don't have to install paseo first.** If you run the Paseo desktop app, its CLI is already bundled; if not, the agent runs `npm i -g @getpaseo/cli` per [SKILL.md](SKILL.md) and carries on.
 
 ---
 

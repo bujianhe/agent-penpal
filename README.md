@@ -34,14 +34,15 @@ claude plugin install agent-penpal@agent-penpal
 
 ## 三步
 
-1. **两台机器各装好**（见上面「安装」）
-2. **确认有 paseo CLI**：`npm i -g @getpaseo/cli`
-   **已经装了 Paseo 桌面 App 的话它自带一份 CLI，这一步直接跳过。**（脚本会自动找到它）
-3. **每台跑一次 `setup.mjs --name 电脑`** 生成名片，然后把两张名片互相发一次
+**人只有两个动作，技术活全归 agent。**
 
-之后人不用敲任何命令——路由、名册、多轮往返全自动。
+1. **两台机器各装一次**（见上「安装」）
+2. **跟它说一句「出张名片」** —— agent 会自己把依赖补齐（缺 Node 装 Node、缺 paseo CLI 装 paseo CLI）、把服务起起来、把名片递给你
+3. **两张名片互发一次**（复制粘贴到对面）
 
-**前置条件**：Node 21+。
+之后 agent 之间自己一问一答，**你只看结论**。
+
+> 第 2 步是重点：**你不用先装 paseo**。装着 Paseo 桌面 App 的话它本来就自带 CLI；没装的话 agent 会按 [SKILL.md](SKILL.md) 的指示 `npm i -g @getpaseo/cli`，装完接着往下走。
 
 ---
 
