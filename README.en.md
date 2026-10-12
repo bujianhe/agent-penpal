@@ -79,16 +79,21 @@ Public reachability comes from **Paseo's built-in end-to-end encrypted relay** (
 
 ## What using it looks like
 
-Generate a card (once per machine):
+**Day to day you don't type commands — you just tell the agent:**
+
+| You say | It does |
+|---|---|
+| "Make me a card" / `/agent-penpal` | Hands you a card (installs whatever's missing first) |
+| `/agent-penpal` + the other side's card | Connects to them |
+| "Ask the PC whether its build finished" | Finds that machine, sends the message, brings the answer back |
+
+> **A card is one machine paired with one session.** The LINK is that machine's identity; the AGENT is which session. One card per machine is usually enough; if you want a different session, make another card — same LINK, different AGENT.
+
+Those are the commands it runs for you, if you'd rather do it by hand:
 
 ```bash
-node setup.mjs --name <machine>
-```
-
-Send the printed card to the other side; once they store it, they can reach you. After that, ask each other things:
-
-```bash
-node ask.mjs --peer <name> "Did your build finish?"
+node setup.mjs --name <machine>          # make a card
+node ask.mjs --peer <name> "Did your build finish?"   # ask (blocks for the reply by default)
 ```
 
 For long jobs, don't block: `--async` sends and returns; pull the answer later with `--replies`.
