@@ -77,60 +77,27 @@ node <skill目录>/scripts/setup.mjs --name <本机名字，如 电脑>
 
 **1）建议开启开机自启**。原因：对端找你时只认"你的 daemon 此刻在不在线"——不在线就直接连接失败、**消息不会排队**（没有离线补投）。不配自启 = 每次重启后都有一段"失联期"，而对方并不知道你什么时候在线，那段时间找你的人就丢了。
 
-> ⚠️ **托管给 systemd/launchd 要用 `paseo daemon run`，不是 `daemon start`。**
-> `daemon start` 的那套 `--foreground` 参数**已经被移除**（跑 `daemon start --foreground` 会直接报错 `--foreground was removed`）。`daemon run` 才是前台运行、常驻交给守护进程管理器的那个。
-> 下面配置里的 `__PASEO__` 换成 paseo CLI 的**实际路径**（`which paseo`，或 `node setup.mjs` 的探测结果；装了桌面 App 的通常是 App 里那份）。路径有空格时记得加引号。
-
-**Linux —— systemd 用户服务（没有桌面 App 的服务器就靠这个）**
-
-```bash
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/paseo.service <<'EOF'
-[Unit]
-Description=Paseo daemon
-After=network-online.target
-
-[Service]
-ExecStart=__PASEO__ daemon run
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-EOF
-systemctl --user daemon-reload
-systemctl --user enable --now paseo
-loginctl enable-linger "$USER"     # 关键：不登录也常驻
-systemctl --user status paseo      # 期望：active (running)
-```
-
-**macOS**
-
-装了 Paseo 桌面 App 的，把它加进「系统设置 → 通用 → 登录项」最省事（**App 起 = daemon 起**）。要在 App 之外自己托管：
-
-```bash
-cat > ~/Library/LaunchAgents/sh.paseo.daemon.plist <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>sh.paseo.daemon</string>
-  <key>ProgramArguments</key>
-  <array><string>__PASEO__</string><string>daemon</string><string>run</string></array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-</dict></plist>
-EOF
-launchctl load ~/Library/LaunchAgents/sh.paseo.daemon.plist
-launchctl list | grep paseo        # 看有没有起来
-```
-
-**Windows**
-
-最省事：把 Paseo 桌面 App 丢进"启动"文件夹（App 起 = daemon 起）。命令行版：
+**要托管的就是这一条命令**（其余是各平台的常规做法，agent 自己会）：
 
 ```
-schtasks /create /tn "Paseo daemon" /sc onlogon /tr "\"__PASEO__\" daemon run"
+__PASEO__ daemon run
 ```
+
+`__PASEO__` = paseo CLI 的**绝对路径**（`which paseo`，或 `node setup.mjs` 的探测结果；装了桌面 App 的通常是 App 里那份）。**不能只写 `paseo`**——systemd / launchd / 计划任务**都不读 shell 的 rc 文件**，它们眼里 PATH 上没有 `paseo`。
+
+⚠️ **三个坑**：
+
+1. **是 `daemon run`，不是 `daemon start`。** `daemon start` 那套 `--foreground` **已被移除**，用了会直接报错 `--foreground was removed`。
+2. **daemon 要能找到 `claude` / `codex`**（来消息时要拉起它们续聊）。如果它们在 `~/.local/bin` 这类非标准位置，守护进程的最小 PATH 里没有——unit 里得显式 `Environment=PATH=<你的 PATH>`。
+3. **Linux 无桌面环境**必须 `loginctl enable-linger "$USER"`，否则你一退出登录它就停。
+
+**各平台怎么托管那条命令**：
+
+- **Linux**：systemd 用户服务，`~/.config/systemd/user/paseo.service` 里 `ExecStart=__PASEO__ daemon run`、`Restart=always`，然后 `systemctl --user enable --now paseo`
+- **macOS**：`~/Library/LaunchAgents/` 下放个 plist（`RunAtLoad` + `KeepAlive`）；**装了桌面 App 的话，加进「系统设置 → 通用 → 登录项」更省事**（App 起 = daemon 起）
+- **Windows**：任务计划程序加一条"登录时"跑那条命令；或把桌面 App 丢进"启动"文件夹
+
+> **agent 该主动配，别只把这段文档丢给用户。** 这是常规的系统设置，范围也清楚。配完告诉用户一声：配了什么、怎么撤（Linux `systemctl --user disable --now paseo`；macOS `launchctl unload …` 或从登录项移除；Windows 删掉那条计划任务）。
 
 **配完自检（三平台通用）**：`paseo daemon status` 要显示 running，否则对方找不到你。
 
@@ -238,7 +205,7 @@ AGENT=<对话窗口短ID>
 | 提示找不到 paseo | 脚本会依次找 `$PASEO_CLI` → PATH → 桌面 App 自带那份。都没找到才是真没有：Node 21+；`npm i -g @getpaseo/cli`。装过还报找不到 = npm 全局 bin 不在 PATH（`npm prefix -g` 拿目录，Unix 加 `/bin`；`npm bin -g` 已在 npm 9+ 删除）。只装了桌面 App 的，软链 App 里那份即可（见"装到一台新机器"） |
 | **Windows + Git Bash**：`which paseo` 能跑，脚本却说"找不到 paseo CLI" | Git Bash 的 PATH 可能是 POSIX 形式（`/d/work/...`），或 `paseo` 带 `.cmd` 后缀——早期版本这两种都探测不到。**新版已修**（PATH 转译 + 不再重复拼扩展名）。旧版应急：`PASEO_CLI='D:\path\to\paseo.cmd' node ask.mjs …` |
 | `--peer <名字>` 说"名册里没有" | 名字得**先入册**：收到名片后跑一次 `ask.mjs --remember "<名片>"`，之后"问 <名字>"才能点名。报错里会列出名册现在有谁。不想存就直接贴 LINK：`--host <LINK> --agent <AGENT>`。⚠️ **Paseo App 的 host 别名表（名字是对端 hostname）跟名片上的 `NAME=` 不是一套东西**，别混 |
-| 配了自启，`paseo daemon status` 还是 not running | 多半是用了 `daemon start --foreground`——**这个参数已被移除**。守护进程管理器要用 **`paseo daemon run`**（见"让 daemon 一直在线"里的现成配置）。Linux 别忘了 `loginctl enable-linger "$USER"`，否则不登录就不跑 |
+| 配了自启，`paseo daemon status` 还是 not running | 多半是用了 `daemon start --foreground`——**这个参数已被移除**，要托管的是 **`<paseo 绝对路径> daemon run`**（见"让 daemon 一直在线"）。另外两个常见原因：只写了 `paseo` 没用绝对路径（守护进程不读 shell 的 rc，PATH 里没有它）；Linux 没做 `loginctl enable-linger "$USER"` |
 | 配对链接泄漏了 | `setup.mjs --rotate` 换新身份：老链接立即失效、所有对端换新名片（见"链接泄漏了怎么办"） |
 | 对端说"连不上你" | 可能你刚 --rotate 换过身份；把新名片重发给他 |
 | 想不起存过哪些远程 | `ask.mjs --list`（列名字+窗口ID，链接不显示）；点名发送 `--peer <名字>`——**名字重了不会替你猜**，会把候选列出来让你挑，选定后用 `--agent <窗口ID>` 重发 |
