@@ -70,7 +70,7 @@ claude plugin install agent-penpal@agent-penpal
 | 做法 | 关键前提 |
 |---|---|
 | 人肉复制粘贴 | 没有前提，代价是你的时间 |
-| 反向 SSH 隧道 | **要 SSH 打得通**（一端得网络可达）+ 隧道工具 |
+| 反向 SSH 隧道 | 要 SSH 打得通（一端得网络可达）+ 隧道工具 |
 | frp / ngrok | 公网服务器或账号 |
 | Tailscale / VPN 组网 | 两端加入同一虚拟网 |
 | **agent-penpal** | **两台机器能上网** |

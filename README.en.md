@@ -70,7 +70,7 @@ Public reachability comes from **Paseo's built-in end-to-end encrypted relay** (
 | Approach | What it really requires |
 |---|---|
 | Copy-paste by hand | Nothing — the cost is your time |
-| Reverse SSH tunnel | **SSH that actually works** (one end reachable) + a tunnel tool |
+| Reverse SSH tunnel | SSH that actually works (one end reachable) + a tunnel tool |
 | frp / ngrok | A public server or an account |
 | Tailscale / VPN | Both ends joined to the same virtual network |
 | **agent-penpal** | **Internet access on both machines** |
