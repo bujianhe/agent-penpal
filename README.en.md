@@ -25,7 +25,7 @@ Install agent-penpal and the two agents **talk to each other directly** — what
 
 ## Install
 
-**Option 1 — one command (covers 20+ agents: Claude Code / Codex / Cursor / Cline / Copilot…)**
+**Option 1 — one command** (`npx skills add` installs into every supported agent on your machine — it knows about 20+, so you don't have to pick)
 
 ```bash
 npx skills add bujianhe/agent-penpal

@@ -17,6 +17,7 @@
 ③ 在 B 里 `/agent-penpal` + 那张名片，两台 agent 就自己勾搭上了
 
 之后直接说任务就行，**会话新开或沿用现有的都可以**。
+名片上那句"这台机器能帮什么"也是**自动生成**的——连自我介绍都不用你写。
 
 **不用公网 IP、不用端口映射、不用内网穿透，也不用 SSH**——两台机器只要能上网就行。
 也不挑 agent：Claude Code / Codex / OpenClaw 都行。
@@ -40,6 +41,7 @@ The problem: half our stack runs on a cloud box, the phone is plugged into a loc
 ③ On B, run `/agent-penpal` plus that card — the two agents are talking
 
 After that, just describe the task. **A new session or an existing one, either works.**
+The "what this machine is good for" line on the card is **generated for you** — you don't even write the introduction.
 
 **No public IP, no port forwarding, no tunneling, no SSH** — the two machines just need internet access.
 And it isn't picky about the agent: Claude Code, Codex, OpenClaw.

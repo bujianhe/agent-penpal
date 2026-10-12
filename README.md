@@ -25,7 +25,7 @@
 
 ## 安装
 
-**方式一：一条命令（覆盖 20+ 个 agent：Claude Code / Codex / Cursor / Cline / Copilot…）**
+**方式一：一条命令**（`npx skills add` 会一次装进你机器上它支持的各个 agent——它认识 20+ 家，不用你挑）
 
 ```bash
 npx skills add bujianhe/agent-penpal
