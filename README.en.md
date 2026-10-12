@@ -53,9 +53,11 @@ That's already bidirectional: **every message carries the sender's own card at t
 
 ---
 
-## No public IP needed
+## No public IP, and no SSH
 
-No public IP, no port forwarding, no tunneling service, no VPN.
+**No public IP, no port forwarding, no tunneling service, no VPN — and no SSH.**
+
+No end that has to be reachable, no tunnel to set up, no keys to manage, no IP that changes on you.
 
 Public reachability comes from **Paseo's built-in end-to-end encrypted relay** (built on Paseo). frp / ngrok / Tailscale / reverse SSH all exist to solve "how do the two sides reach each other" — here, that's built in.
 
@@ -63,22 +65,15 @@ Public reachability comes from **Paseo's built-in end-to-end encrypted relay** (
 
 ## Compared with the usual approaches
 
-Same job — what each approach asks you to set up first:
+**What we're most interested in removing is SSH.** No reachable end, no tunnel to configure, no keys to manage — **both machines just need internet access**.
 
-| Approach | What you set up first |
+| Approach | What it really requires |
 |---|---|
-| Copy-paste by hand | Nothing — it just costs you your time |
-| Reverse SSH tunnel | One end has to be reachable, plus a tunnel tool, plus you fix it when it drops |
-| frp / ngrok | A public server or an account, plus config |
-| Tailscale / VPN | A client on both ends, joined to the same virtual network |
-| **agent-penpal** | **Install the skill once** |
-
-### When not to use it
-
-- Both machines on the same LAN with SSH already open — **plain SSH is faster**; don't stack another layer.
-- A one-off file transfer — email or a shared drive is fine.
-
-It earns its keep when the two sides need to **go back and forth repeatedly** and a network sits in between.
+| Copy-paste by hand | Nothing — the cost is your time |
+| Reverse SSH tunnel | **SSH that actually works** (one end reachable) + a tunnel tool |
+| frp / ngrok | A public server or an account |
+| Tailscale / VPN | Both ends joined to the same virtual network |
+| **agent-penpal** | **Internet access on both machines** |
 
 ---
 
