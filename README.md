@@ -25,11 +25,11 @@
 
 ## 安装
 
-**方式一：一条命令**（`npx skills add` 会一次装进你机器上它支持的各个 agent——它认识 20+ 家，不用你挑）
+**方式一：一条命令** —— `npx skills add bujianhe/agent-penpal`
 
-```bash
-npx skills add bujianhe/agent-penpal
-```
+它会一次装进你机器上它支持的各个 agent（20+ 家：Claude Code / Codex / Cursor / Cline / Copilot / Windsurf…）。
+
+**我们没有任何 Claude Code 特有的东西**——脚本是纯 Node，规则写在 `SKILL.md` 里，不调哪家的私有 API。所以**能装进去、agent 能跑命令，就能用**。（端到端实测过三家：Claude Code / Codex / OpenClaw。）
 
 **方式二：Claude Code 插件市场**
 

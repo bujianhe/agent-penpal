@@ -25,11 +25,11 @@ Install agent-penpal and the two agents **talk to each other directly** — what
 
 ## Install
 
-**Option 1 — one command** (`npx skills add` installs into every supported agent on your machine — it knows about 20+, so you don't have to pick)
+**Option 1 — one command** — `npx skills add bujianhe/agent-penpal`
 
-```bash
-npx skills add bujianhe/agent-penpal
-```
+It installs into every supported agent on your machine (20+ of them: Claude Code / Codex / Cursor / Cline / Copilot / Windsurf…).
+
+**There is nothing Claude Code specific here** — the scripts are plain Node, the rules live in `SKILL.md`, and no vendor's private API is called. So **if it installs and the agent can run commands, it works.** (Tested end to end on three: Claude Code / Codex / OpenClaw.)
 
 **Option 2 — Claude Code plugin marketplace**
 
