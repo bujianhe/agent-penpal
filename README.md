@@ -56,6 +56,8 @@ claude plugin install agent-penpal@agent-penpal
 
 **不用专门准备窗口**：在 Paseo 的会话里跑就用**当前这个**；在普通终端里跑，它会自己开一个（或沿用上次那个）常驻窗口——不用你操心。
 
+**名片上那句"我是干嘛的"也不用你写。** 第一次出名片时自动生成：先读你当前目录的 `README.md` / `CLAUDE.md` / `AGENTS.md`，抓一句正经的职责描述；都没有才退回用当前会话的标题。生成后固定不变——于是对方一拿到名片就知道**这台机器能帮它干什么**，不用你解释。
+
 > 第 2 步是重点：**你不用先装 paseo**。装着 Paseo 桌面 App 的话它本来就自带 CLI；没装的话 agent 会按 [SKILL.md](SKILL.md) 的指示 `npm i -g @getpaseo/cli`，装完接着往下走。
 
 ---

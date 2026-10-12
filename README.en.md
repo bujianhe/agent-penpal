@@ -56,6 +56,8 @@ That's already bidirectional: **every message carries the sender's own card at t
 
 **No window to set up**: run it inside a Paseo session and it uses **the one you're already in**; run it from a plain terminal and it opens (or reuses) a resident window for you.
 
+**The "what I'm good for" line on the card isn't written by you either.** The first card generates it automatically: it reads `README.md` / `CLAUDE.md` / `AGENTS.md` in your current directory and lifts a proper responsibility sentence from it; only if there's nothing to lift does it fall back to the session title. It stays fixed after that — so the other side knows **what this machine is good for** the moment the card arrives.
+
 > Step 2 is the point: **you don't have to install paseo first.** If you run the Paseo desktop app, its CLI is already bundled; if not, the agent runs `npm i -g @getpaseo/cli` per [SKILL.md](SKILL.md) and carries on.
 
 ---
