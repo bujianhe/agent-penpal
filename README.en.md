@@ -42,6 +42,8 @@ Install it on **both** machines.
 
 That's already bidirectional: **every message carries the sender's own card at the top**, so both sides end up with each other's coordinates. **You only carry a card once.**
 
+**No window to set up**: run it inside a Paseo session and it uses **the one you're already in**; run it from a plain terminal and it opens (or reuses) a resident window for you.
+
 > Step 2 is the point: **you don't have to install paseo first.** If you run the Paseo desktop app, its CLI is already bundled; if not, the agent runs `npm i -g @getpaseo/cli` per [SKILL.md](SKILL.md) and carries on.
 
 ---

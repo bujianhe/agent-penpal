@@ -42,6 +42,8 @@ claude plugin install agent-penpal@agent-penpal
 
 连上之后**就是双向的**：对面发第一条消息时，**它自己的名片会自动附在消息开头**，所以两台都拿到了对方的坐标——**名片你只需要搬一次**。
 
+**不用专门准备窗口**：在 Paseo 的会话里跑就用**当前这个**；在普通终端里跑，它会自己开一个（或沿用上次那个）常驻窗口——不用你操心。
+
 > 第 2 步是重点：**你不用先装 paseo**。装着 Paseo 桌面 App 的话它本来就自带 CLI；没装的话 agent 会按 [SKILL.md](SKILL.md) 的指示 `npm i -g @getpaseo/cli`，装完接着往下走。
 
 ---
