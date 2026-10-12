@@ -61,6 +61,27 @@ claude plugin install agent-penpal@agent-penpal
 
 ---
 
+## 和常见做法比
+
+同一件事，别的做法要你先准备什么：
+
+| 做法 | 你要先准备什么 |
+|---|---|
+| 人肉复制粘贴 | 什么都不用——花的是你的时间 |
+| 反向 SSH 隧道 | 一端得网络可达 + 隧道工具 + 断了你得会修 |
+| frp / ngrok | 公网服务器或账号 + 配置 |
+| Tailscale / VPN 组网 | 两端装客户端 + 加入同一虚拟网 |
+| **agent-penpal** | **装一次 skill** |
+
+### 什么时候不用它
+
+- 两台机器在同一个局域网、又都开着 SSH——**直接用 SSH 更快**，别多叠一层
+- 只是偶尔传一次文件——微信/网盘就行
+
+它值得用的场合：两边要**反复来回问**，中间又隔着网络。
+
+---
+
 ## 用起来是什么样
 
 出名片（每台机器一次）：
@@ -92,7 +113,7 @@ node ask.mjs --peer 电脑 "你那边构建过了吗？"
 
 ## 你可能在搜这些
 
-跨机器 agent · 两台电脑的 AI 互相通信 · agent connector · agent-to-agent（A2A）· MCP 之外的 agent 互联 · 不用公网 IP 的远程 agent · Claude Code / Codex / OpenClaw 跨主机 · remote agent daemon · 多机协作 · 让 AI 自己互相问
+跨机器 agent · 两台电脑的 AI 互相通信 · agent connector · agent-to-agent（A2A）· MCP 之外的 agent 互联 · 不用公网 IP 的远程 agent · 在 NAT 后面也能连 · zero-infrastructure · Claude Code / Codex / OpenClaw 跨主机 · remote agent daemon · 多机协作 · cross-harness · agent 消息总线 · 让 AI 自己互相问
 
 ---
 

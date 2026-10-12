@@ -61,6 +61,27 @@ Public reachability comes from **Paseo's built-in end-to-end encrypted relay** (
 
 ---
 
+## Compared with the usual approaches
+
+Same job — what each approach asks you to set up first:
+
+| Approach | What you set up first |
+|---|---|
+| Copy-paste by hand | Nothing — it just costs you your time |
+| Reverse SSH tunnel | One end has to be reachable, plus a tunnel tool, plus you fix it when it drops |
+| frp / ngrok | A public server or an account, plus config |
+| Tailscale / VPN | A client on both ends, joined to the same virtual network |
+| **agent-penpal** | **Install the skill once** |
+
+### When not to use it
+
+- Both machines on the same LAN with SSH already open — **plain SSH is faster**; don't stack another layer.
+- A one-off file transfer — email or a shared drive is fine.
+
+It earns its keep when the two sides need to **go back and forth repeatedly** and a network sits in between.
+
+---
+
 ## What using it looks like
 
 Generate a card (once per machine):
@@ -92,7 +113,7 @@ Other flags: `node <script> --help`, or just read [SKILL.md](SKILL.md).
 
 ## What you might be searching for
 
-Cross-machine agents · let two computers' AIs talk to each other · agent connector · agent-to-agent (A2A) · agent interop beyond MCP · remote agent without a public IP · Claude Code / Codex / OpenClaw across machines · remote agent daemon · multi-machine automation · agents asking each other
+Cross-machine agents · let two computers' AIs talk to each other · agent connector · agent-to-agent (A2A) · agent interop beyond MCP · remote agent without a public IP · behind NAT · zero-infrastructure · no server, no accounts, no open ports · Claude Code / Codex / OpenClaw across machines · cross-harness · agent message bus · multi-machine agent collaboration
 
 ---
 
