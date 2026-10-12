@@ -1,5 +1,6 @@
 ---
 name: agent-penpal
+version: 0.1.0
 description: 让两台机器上的 agent（Claude Code / Codex / OpenClaw）跨主机对话、互相问事——一边够不着的东西，它自己去问另一边。需要另一台机器的信息/硬件/环境（或用户点名"问 X"）时用；本机能答的别用。触发：/agent-penpal、"出名片/get my card"→ 出名片；贴对方名片或"连接/connect"→ 发消息、拉答复；收到【来自X】+名片→按约定回答。场景：服务器 agent 问 PC、连不了硬件要另一台代查、A↔B 联调、从零冷启动。关键词：跨机器、remote daemon、agent connector、relay、card、路由、setup.mjs、ask.mjs。
 ---
 
