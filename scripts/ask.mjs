@@ -323,9 +323,29 @@ function resolveLink(args) {
     }
     const hit = matches[0] || null;
     if (hit && hit.link && hit.agent) return { link: hit.link, agent: hit.agent, source: `名册 "${args.peer}"` };
+
+    // 名册里没有 → 退回 GUI 别名表（peers.mjs 读的是 Paseo 桌面 App 的 host 表，
+    // 那里的名字默认是**对端 hostname**，跟名片上的 NAME 不是一套东西，别混）
     const r = run(process.execPath, [PEERS_SCRIPT, args.peer], { timeout: 30000 });
-    if (r.code !== 0) return { error: `按名字 "${args.peer}" 查坐标失败（名册里没有，GUI 别名也没有）：\n${r.out}` };
-    return { link: r.out.split("\n")[0].trim(), source: `GUI 别名 ${args.peer}` };
+    if (r.code === 0) return { link: r.out.split("\n")[0].trim(), source: `GUI 别名 ${args.peer}` };
+
+    // 两边都没有。**别把 host 别名表整张当线索抛出去**——那会让人误以为"这些是我的对端"。
+    // 说清楚：名册里现在有谁、怎么把这张名片加进来、不加也能怎么发。
+    const roster = values
+      .filter((v) => v.name)
+      .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+    return {
+      error:
+        `名册里没有叫 "${args.peer}" 的对端（Paseo 的 host 别名表里也没有）。\n` +
+        (roster.length
+          ? `名册里现在有：\n${roster.map((v) => `  ${v.name}  ${v.agent}  （最后使用 ${peerAge(v.lastUsedAt)}）`).join("\n")}\n`
+          : "名册现在是空的。\n") +
+        `\n把 "${args.peer}" 加进来：存一次它那张名片就行——\n` +
+        `  node ask.mjs --remember "<把名片整块贴进来>"\n` +
+        `（收到【来自X】+名片的消息时存一次即可；存过之后"问 ${args.peer}"就能直接点名。）\n` +
+        `\n不想存也行，直接用名片里的 LINK：\n` +
+        `  node ask.mjs --host <对方LINK> --agent <对方AGENT> "问题…"`,
+    };
   }
   if (args.host) return { link: args.host, source: "--host" };
   if (process.env.PASEO_PEER) return { link: process.env.PASEO_PEER, source: "环境变量 PASEO_PEER" };

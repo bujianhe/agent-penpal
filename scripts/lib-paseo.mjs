@@ -25,17 +25,39 @@ function isExecutable(p) {
   }
 }
 
+// PATH 里的目录列表。Git Bash / MSYS 下 PATH 有时是 POSIX 形式（/d/foo/bar，用 ":" 分隔），
+// 而 win32 的 path.delimiter 是 ";"——那样整串会缩成一个"目录"，一个都查不到。这里兜一下。
+function pathDirs() {
+  const raw = process.env.PATH || "";
+  const parts = raw.split(path.delimiter);
+  if (process.platform === "win32" && parts.length === 1 && /(^|:)\/[a-zA-Z]\//.test(raw)) {
+    return raw.split(":");
+  }
+  return parts;
+}
+
+// Git Bash 的 PATH 条目形如 /d/work/x → Windows 原生 Node 需要 D:\work\x
+function toWinPath(p) {
+  return process.platform === "win32" && /^\/[a-zA-Z]\//.test(p)
+    ? p[1].toUpperCase() + ":\\" + p.slice(3).replace(/\//g, "\\")
+    : null;
+}
+
 // PATH 里找可执行文件（不 spawn，纯查文件系统；Windows 认 PATHEXT）
 function which(cmd) {
-  const exts =
-    process.platform === "win32"
-      ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)
-      : [""];
-  for (const dir of (process.env.PATH || "").split(path.delimiter)) {
+  const isWin = process.platform === "win32";
+  const pathext = (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  // 名字已经带扩展名（paseo.cmd）就**别再用 PATHEXT 拼**——否则会拼出
+  // paseo.cmd.EXE / paseo.cmd.CMD 这种永远不存在的名字，Windows 上必然找不到 paseo。
+  const names = isWin ? (/\.[a-z0-9]+$/i.test(cmd) ? [cmd] : pathext.map((e) => cmd + e)) : [cmd];
+  for (const dir of pathDirs()) {
     if (!dir) continue;
-    for (const ext of exts) {
-      const p = path.join(dir, cmd + ext);
-      if (isExecutable(p)) return p;
+    const alt = toWinPath(dir);
+    for (const d of alt ? [dir, alt] : [dir]) {
+      for (const n of names) {
+        const p = path.join(d, n);
+        if (isExecutable(p)) return p;
+      }
     }
   }
   return null;
