@@ -18,9 +18,23 @@ Now: install agent-penpal on both machines and exchange cards once. From there, 
 
 ---
 
+## Install
+
+```bash
+# Option 1 — plugin marketplace (recommended)
+claude plugin marketplace add bujianhe/agent-penpal
+claude plugin install agent-penpal@agent-penpal
+```
+
+Or **option 2 — copy the folder** into your agent's skills directory (for Claude Code, `~/.claude/skills/agent-penpal/`). For agents with no skills mechanism (plain AGENTS.md / system prompt), pasting the body of [SKILL.md](SKILL.md) works just as well.
+
+Install it on **both** machines.
+
+---
+
 ## Three steps
 
-1. **Drop the skill folder into the agent on each machine** (Claude Code / Codex / OpenClaw) — copy `agent-penpal/` into that agent's skills directory; for Claude Code that's `~/.claude/skills/agent-penpal/`
+1. **Install on both machines** (see "Install" above)
 2. **Make sure the paseo CLI is available**: `npm i -g @getpaseo/cli`
    **If you already run the Paseo desktop app, its CLI is bundled — skip this step.** (The scripts find it automatically.)
 3. **Run `setup.mjs --name <machine>` once per machine** to generate a card, then send the two cards to each other

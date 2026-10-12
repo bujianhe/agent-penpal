@@ -1,0 +1,9 @@
+{
+  "name": "agent-penpal",
+  "description": "让两台机器上的 AI agent 跨主机对话、互相问事。不需要公网 IP / 端口映射 / 内网穿透——公网可达走 Paseo 自带的端到端加密 relay。",
+  "author": { "name": "bujianhe" },
+  "homepage": "https://github.com/bujianhe/agent-penpal",
+  "repository": "https://github.com/bujianhe/agent-penpal",
+  "license": "MIT",
+  "skills": ["."]
+}

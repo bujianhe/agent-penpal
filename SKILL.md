@@ -13,7 +13,9 @@ description: 让两台机器上的 agent（Claude Code / Codex / OpenClaw）跨�
 
 ## 装到一台新机器（agent 自己动手，三条）
 
-1. **放 skill**：整个 `agent-penpal/` 目录放进该 agent 的 skill 目录——Claude Code 是 `~/.claude/skills/agent-penpal/`（Windows：`%USERPROFILE%\.claude\skills\agent-penpal\`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把本文贴进去一样生效。
+1. **放 skill**：二选一——
+   - **插件市场装**：`claude plugin marketplace add bujianhe/agent-penpal` → `claude plugin install agent-penpal@agent-penpal`
+   - **手动拷目录**：整个 `agent-penpal/` 目录放进该 agent 的 skill 目录——Claude Code 是 `~/.claude/skills/agent-penpal/`（Windows：`%USERPROFILE%\.claude\skills\agent-penpal\`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把本文贴进去一样生效。
 2. **装 Node 21+**（先 `node -v`，没有或低于 21 就装）：
    - Windows：`winget install OpenJS.NodeJS.LTS`
    - macOS：`brew install node`

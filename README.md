@@ -18,9 +18,23 @@ agent 最常卡在同一个地方：**我要的东西不在它那台机器上**�
 
 ---
 
+## 安装
+
+```bash
+# 方式一：插件市场（推荐）
+claude plugin marketplace add bujianhe/agent-penpal
+claude plugin install agent-penpal@agent-penpal
+```
+
+或**方式二：手动拷目录**——把 `agent-penpal/` 整个放进你的 agent 的 skill 目录（Claude Code 是 `~/.claude/skills/agent-penpal/`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把 [SKILL.md](SKILL.md) 的正文贴进去一样生效。
+
+两边机器都要装。
+
+---
+
 ## 三步
 
-1. **把 skill 目录放进两台机器上的 agent**（Claude Code / Codex / OpenClaw 都行）——`agent-penpal/` 整个拷进该 agent 的 skill 目录，例如 Claude Code 是 `~/.claude/skills/agent-penpal/`
+1. **两台机器各装好**（见上面「安装」）
 2. **确认有 paseo CLI**：`npm i -g @getpaseo/cli`
    **已经装了 Paseo 桌面 App 的话它自带一份 CLI，这一步直接跳过。**（脚本会自动找到它）
 3. **每台跑一次 `setup.mjs --name 电脑`** 生成名片，然后把两张名片互相发一次
