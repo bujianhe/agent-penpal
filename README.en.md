@@ -14,7 +14,7 @@ Say your agent runs on a cloud server, but the phone you want it to debug is plu
 
 So you become the courier: run a command here, paste the result over there, the agent says "now check X", paste it back… dozens of round trips. **You're the delivery guy between two computers.**
 
-Now: install agent-penpal on both machines and exchange cards once. From there, the two agents ask each other until the job is done — **you just read the conclusion.**
+Now: install agent-penpal on both machines and **hand over a single card** — from there the two agents ask each other until the job is done. **You just read the conclusion.**
 
 ---
 
@@ -34,13 +34,13 @@ Install it on **both** machines.
 
 ## Three steps
 
-**You do two things. The agent does the rest.**
+**You hand over one card. That's it.**
 
 1. **Install it on both machines** (see "Install" above)
-2. **Tell it "make me a card"** — the agent fills in whatever's missing (Node if needed, the paseo CLI if needed), starts the service, and hands you the card
-3. **Send the two cards to each other** (copy and paste)
+2. **Say "make me a card" on each** — the agent fills in whatever's missing (Node, the paseo CLI), starts the service, and hands you the card
+3. **Give one of the cards to the other machine** and let it connect
 
-From there the agents ask each other until the job is done — **you just read the conclusion.**
+That's already bidirectional: **every message carries the sender's own card at the top**, so both sides end up with each other's coordinates. **You only carry a card once.**
 
 > Step 2 is the point: **you don't have to install paseo first.** If you run the Paseo desktop app, its CLI is already bundled; if not, the agent runs `npm i -g @getpaseo/cli` per [SKILL.md](SKILL.md) and carries on.
 
