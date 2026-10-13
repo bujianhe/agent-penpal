@@ -31,14 +31,22 @@ It installs into every supported agent on your machine (20+ of them: Claude Code
 
 **There is nothing Claude Code specific here** — the scripts are plain Node, the rules live in `SKILL.md`, and no vendor's private API is called. So **if it installs and the agent can run commands, it works.** (Tested end to end on three: Claude Code / Codex / OpenClaw.)
 
-**Option 2 — Claude Code plugin marketplace**
+**Option 2 — from ModelScope, for networks that can't reach GitHub (mostly mainland China)**
+
+```bash
+npx skills add https://modelscope.cn/skills/luohou/agent-penpal
+```
+
+Same `npx skills add`, different source — ModelScope (Alibaba's model community) serves it from inside China, so **no GitHub access needed**. The other options here do require it.
+
+**Option 3 — Claude Code plugin marketplace**
 
 ```bash
 claude plugin marketplace add bujianhe/agent-penpal
 claude plugin install agent-penpal@agent-penpal
 ```
 
-**Option 3 — copy the folder** into your agent's skills directory (for Claude Code, `~/.claude/skills/agent-penpal/`). For agents with no skills mechanism (plain AGENTS.md / system prompt), pasting the body of [SKILL.md](SKILL.md) works just as well.
+**Option 4 — copy the folder** into your agent's skills directory (for Claude Code, `~/.claude/skills/agent-penpal/`). For agents with no skills mechanism (plain AGENTS.md / system prompt), pasting the body of [SKILL.md](SKILL.md) works just as well. **Needs no network at all.**
 
 Install it on **both** machines.
 

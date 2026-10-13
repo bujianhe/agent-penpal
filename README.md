@@ -31,14 +31,22 @@
 
 **我们没有任何 Claude Code 特有的东西**——脚本是纯 Node，规则写在 `SKILL.md` 里，不调哪家的私有 API。所以**能装进去、agent 能跑命令，就能用**。（端到端实测过三家：Claude Code / Codex / OpenClaw。）
 
-**方式二：Claude Code 插件市场**
+**方式二：国内访问不了 GitHub 就用魔搭（ModelScope）**
+
+```bash
+npx skills add https://modelscope.cn/skills/luohou/agent-penpal
+```
+
+同一条 `npx skills add`，只是从魔搭拉（**不走 GitHub**，国内直连）。上面两种方式都要能访问 GitHub，这种方式不用。
+
+**方式三：Claude Code 插件市场**
 
 ```bash
 claude plugin marketplace add bujianhe/agent-penpal
 claude plugin install agent-penpal@agent-penpal
 ```
 
-**方式三：手动拷目录**——把 `agent-penpal/` 整个放进你的 agent 的 skill 目录（Claude Code 是 `~/.claude/skills/agent-penpal/`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把 [SKILL.md](SKILL.md) 的正文贴进去一样生效。
+**方式四：手动拷目录**——把 `agent-penpal/` 整个放进你的 agent 的 skill 目录（Claude Code 是 `~/.claude/skills/agent-penpal/`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把 [SKILL.md](SKILL.md) 的正文贴进去一样生效。**完全不需要网络。**
 
 **两边机器都要装。**
 
