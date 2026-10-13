@@ -6,6 +6,42 @@ Let the AI agents on two machines talk to each other directly — whatever one o
 
 ---
 
+## See it in 30 seconds
+
+Two machines, two agents. You say one thing on one of them:
+
+```
+you (to the agent on machine A) > make a card for the PC over there
+
+  → environment OK: Node v22.11 · paseo CLI 0.11.0
+  → local daemon already running · pairing link OK
+  ✓ done
+    === PENPAL CARD ===
+    NAME=Mac Mini
+    DESC=macOS side: has the Android SDK and adb — builds, logs, ask me
+    LINK=https://app.paseo.sh/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6…
+    AGENT=9e1e401
+    ==================
+```
+
+Paste that card into the agent on machine B — **paired**.
+
+Then just describe the task:
+
+```
+you (to the agent on machine A) > ask the PC whether the build passed after the login change
+
+  → sending to window 9e1e401… waiting for the other side…
+  → send status: completed
+  ========== reply ==========
+  It passed, yesterday afternoon. Fixed a flaky test while I was in there.
+  ========== end ==========
+```
+
+**Nobody carried anything.** Those two messages were asked and answered by the two agents themselves.
+
+---
+
 ## The problem it solves
 
 Of everything that eats a programmer's time and energy, integration work is near the top. **What costs you isn't writing code — it's ferrying information between two machines.**
