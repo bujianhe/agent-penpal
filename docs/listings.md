@@ -91,8 +91,43 @@ curl -s -X PATCH https://modelscope.cn/openapi/v1/skills/luohou/agent-penpal/set
 **千问专用简介**（171 字）：
 > 让两台机器上的 AI agent 直接互相说话——一边够不着的东西，它自己去问另一边。不用公网 IP、不用端口映射、不用内网穿透，也不用 SSH。三步配对：装 skill → 出名片 → 把名片发给对面，之后 agent 自己一问一答，你只看结论。可装进 Claude Code / Codex / Cursor 等 20+ 种 agent。
 
-**更新方式**：**只有网页流程，没有 API**（api-ref 里没有任何 skill 发布接口）。流程：
-登录 → 设"技能市场个人名称"（首次）→ **实名认证**（个人/企业，只能本人做）→ 拖入 ZIP → 填资料 → 提交审核（安全检测 → 人工审核 → 上线）。
+**更新方式（有 API，已实测跑通）**：
+
+```bash
+KEY=$(cat ~/.qwen-token)          # platform.qianwenai.com 的 API Key（sk-ws- 开头）
+ZIP=~/work/ai/dist/agent-penpal-0.2.0.zip
+
+# 1) 上传 zip —— 注意是这个端点
+#    ✅ 正确: maas.qianwenaiapi.com/api/v1/agentstudio/files         （表单字段名 file）
+#    ❌ 错误: maas.qianwenaiapi.com/compatible-mode/v1/files?purpose=file-extract
+#       那个是给文档解析用的，返回的 file_id 拿到 skills 接口会被拒：
+#       {"code":"SKILL_FILE_NOT_FOUND","message":"SKILL ZIP文件不存在或非可用状态"}
+curl -s -X POST "https://maas.qianwenaiapi.com/api/v1/agentstudio/files" \
+  -H "Authorization: Bearer $KEY" -F "file=@$ZIP"
+# → {"id":"file_xxx","status":"checking",...}
+
+# 2) 轮询到 available（上传后要走安全审核，checking → available 通常十几秒）
+curl -s "https://maas.qianwenaiapi.com/api/v1/agentstudio/files/<file_id>" \
+  -H "Authorization: Bearer $KEY"
+
+# 3) 创建技能（name / description 由服务端从 zip 里的 SKILL.md 解析，不用手填）
+curl -s -X POST "https://maas.qianwenaiapi.com/api/v1/agentstudio/skills" \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"file_id": "<file_id>"}'
+# → {"id":"skill_xxx","name":"agent-penpal","status":"checking","latest_version":"1.0",...}
+
+# 4) 轮询技能状态：checking → active（可挂载）/ rejected（有安全风险）
+curl -s "https://maas.qianwenaiapi.com/api/v1/agentstudio/skills/<skill_id>" \
+  -H "Authorization: Bearer $KEY"
+```
+
+**已建**：`skill_YzI1YWY5MzczYjI0NGUyZWE2ZT`（2026-10-13 创建）
+
+> ⚠️ **这条 API 建的是「自定义技能」**（返回里 `source: "customer"`）——**挂给你自己的智能体用，不进公开市场**。文档明确把两者分开：
+> - **自定义 Skill**：控制台上传 zip，只挂当前账号的智能体 ← **这个有 API**
+> - **技能市场**：社区共享，要实名认证 + 填发布资料 + 审核 ← **只有网页流程，探遍 `publish` 相关路径全 404**
+
+**公开市场更新方式**：网页流程（下面那段），没有 API。
 
 > 简介字段默认会带出 `SKILL.md` 的 description，但我们是 312 字、**超过 200 上限**，所以必须在表单里手动换成上面那份 171 字的。
 
