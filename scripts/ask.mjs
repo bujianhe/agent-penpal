@@ -21,7 +21,7 @@
  * 都立即报错退出，不等 10 分钟超时）。
  *
  * 取值优先级:
- *   链接:   --peer <名字：先本机名册，再 GUI 别名 peers.mjs> > --host <链接> > 环境变量 PASEO_PEER > 文件 ~/.paseo-peer（最近一次）
+ *   链接:   --peer <名字：查本机名册> > --host <链接> > 环境变量 PASEO_PEER > 文件 ~/.paseo-peer（最近一次）
  *   窗口ID: --agent <短ID/全ID> > 名册命中带出的 > 环境变量 PASEO_PEER_AGENT > 文件 ~/.paseo-peer-agent
  *   来源名: --from <名字> > 环境变量 PASEO_SELF > 文件 ~/.paseo-self（设了就自动加【来自X】前缀）
  *
@@ -37,12 +37,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { guardMain, paseoRun, precheckPaseo } from "./lib-paseo.mjs";
-
-const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const PEERS_SCRIPT = path.join(SCRIPTS_DIR, "peers.mjs");
 
 // 坐标文件兜底：环境变量没设时读这几个文件（Linux 机器上尤其有用——agent 的 shell 非交互、不读 .bashrc；
 // ~/.paseo-self-* 由 setup.mjs 冷启动写好）
@@ -174,25 +171,6 @@ function rememberPeer(args, link, agent) {
   return named ? `（名册名 "${name}"）` : "";
 }
 
-// 通用子进程执行器。**只用于跑非 paseo 的命令**（目前只有 peers.mjs 那一处）；
-// 所有 paseo 调用一律走 lib-paseo.mjs 的 paseoRun —— 它负责定位 CLI 和拼对 env
-// （PASEO_HOME / PASEO_HOST 不能同时给，否则 CLI 报 TARGET_AMBIGUOUS 整个罢工）。
-function run(cmd, args, { env = {}, shell = false, timeout = 60000 } = {}) {
-  // shell=true（Windows 跑 paseo.cmd 需要）时拼成单条命令串（带空格的参数手工加引号，也避免 DEP0190）；
-  // shell=false 走 argv 数组，不做引号处理
-  const [c, ...rest] = shell
-    ? [[cmd, ...args].map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, "")}"` : a)).join(" ")]
-    : [cmd, ...args];
-  const res = spawnSync(c, rest, {
-    encoding: "utf8",
-    shell,
-    env: { ...process.env, ...env },
-    timeout,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  return { code: res.status, out: `${res.stdout ?? ""}${res.stderr ?? ""}`.replace(/\x1b\[[0-9;]*m/g, "").trim() };
-}
-
 // 位置参数识别：对方名片两行照抄时自动当坐标用
 const OFFER_LINK_RE = /^https?:\/\/\S*(?:paseo\.sh|#offer=)/i;
 const AGENT_ID_RE = /^(?:[0-9a-f]{6,8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -292,7 +270,7 @@ const HELP = `用法: node ask.mjs <对方LINK> <对方AGENT> "问题……"    
 发送前自动做环境预检（paseo CLI 在不在）和连接检查（连不上 / 窗口ID不存在就立刻报错，不干等）。
   --host <链接>    对端配对链接（也认第一个位置参数）
   --agent <ID>     对端对话窗口短ID（也认第二个位置参数）
-  --peer <名字>    按名字查坐标：先查本机名册（收过的名片），再退 GUI 别名（peers.mjs）
+  --peer <名字>    按名字查坐标：查本机名册（收到/发出过的名片自动入册）
   --from <名字>    来源名，自动加【来自X】前缀（或用环境变量 PASEO_SELF）
   --file <文件>    消息内容从文件读（长文本用）
   --tail <n>       拉答复时取最后 n 行（默认 50；回复文本后面可能跟"思考块"，留点余量）
@@ -309,7 +287,7 @@ const HELP = `用法: node ask.mjs <对方LINK> <对方AGENT> "问题……"    
 
 function resolveLink(args) {
   if (args.peer) {
-    // 先查本机名册（按名片里的名字匹配；条目身份键是 link|agent），再退回 GUI 别名（peers.mjs）
+    // 先查本机名册（按名片里的名字匹配；条目身份键是 link|agent）
     const values = Object.values(readRegistry());
     const want = String(args.peer).trim().toLowerCase();
     // 先精确匹配名字；没有再模糊。命中多台时**不猜**——但也不当错误一扔了事：
@@ -324,19 +302,15 @@ function resolveLink(args) {
     const hit = matches[0] || null;
     if (hit && hit.link && hit.agent) return { link: hit.link, agent: hit.agent, source: `名册 "${args.peer}"` };
 
-    // 名册里没有 → 退回 GUI 别名表（peers.mjs 读的是 Paseo 桌面 App 的 host 表，
-    // 那里的名字默认是**对端 hostname**，跟名片上的 NAME 不是一套东西，别混）
-    const r = run(process.execPath, [PEERS_SCRIPT, args.peer], { timeout: 30000 });
-    if (r.code === 0) return { link: r.out.split("\n")[0].trim(), source: `GUI 别名 ${args.peer}` };
-
-    // 两边都没有。**别把 host 别名表整张当线索抛出去**——那会让人误以为"这些是我的对端"。
-    // 说清楚：名册里现在有谁、怎么把这张名片加进来、不加也能怎么发。
+    // 名册里没有就是没有。**不求助于 Paseo 桌面 App 的 host 别名表**——那边的名字是
+    // 对端 hostname，跟名片上的 NAME 完全两套，混进来只会让人更晕（而且那要求 App 在跑）。
+    // 直接说清楚：名册里现在有谁、怎么把这张名片加进来、不加也能怎么发。
     const roster = values
       .filter((v) => v.name)
       .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
     return {
       error:
-        `名册里没有叫 "${args.peer}" 的对端（Paseo 的 host 别名表里也没有）。\n` +
+        `名册里没有叫 "${args.peer}" 的对端。\n` +
         (roster.length
           ? `名册里现在有：\n${roster.map((v) => `  ${v.name}  ${v.agent}  （最后使用 ${peerAge(v.lastUsedAt)}）`).join("\n")}\n`
           : "名册现在是空的。\n") +
@@ -440,7 +414,7 @@ function main() {
 
   // 环境预检：ask.mjs 的一切动作（查链接、发送、拉答复）都靠 paseo CLI
   if (Number(process.versions.node.split(".")[0]) < 21) {
-    console.log(`提示：当前 Node ${process.version}，建议 21+（本脚本兼容更低版本，配套工具需要）`);
+    console.log(`提示：当前 Node ${process.version}，建议 18+（实测 26；更低版本未测）`);
   }
   const paseo = precheckPaseo();
   if (!paseo) {

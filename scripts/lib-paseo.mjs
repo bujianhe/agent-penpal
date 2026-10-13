@@ -2,8 +2,8 @@
 /**
  * lib-paseo.mjs — setup.mjs / ask.mjs 共用：定位 paseo CLI、给子进程拼 env、预检、顶层兜底。
  *
- * 刻意**不**被 peers.mjs 依赖：peers.mjs 只用 Chrome CDP 读桌面 App、不碰 paseo 命令，
- * 而且它可能被单独拷走用（"只要个链接提取器"），保持独立。
+ * 只依赖 paseo CLI，不碰 Paseo 桌面 App。（曾经有个 peers.mjs 从 App 的 Electron 数据里
+ * 挖 host 别名，因为跟我们的名册是两套名字、只会让人更晕，已删除。）
  */
 
 import fs from "node:fs";
@@ -215,7 +215,7 @@ export function precheckPaseo() {
       console.error("   Linux 上 CLI 在 /opt/Paseo/resources/bin/paseo，软链到 ~/.local/bin/ 即可。");
     }
     console.error("");
-    console.error("② 如果确实没装：先装 Node 21+，再装 CLI");
+    console.error("② 如果确实没装：先装 Node 18+，再装 CLI");
     console.error("   npm i -g @getpaseo/cli");
     console.error(`   装完还报找不到 = npm 全局 bin 不在 PATH：${npmBinHint()}`);
     console.error("");

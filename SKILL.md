@@ -19,7 +19,7 @@ description: 让两台机器上的 agent（Claude Code / Codex / OpenClaw）跨�
 1. **放 skill**：二选一——
    - **插件市场装**：`claude plugin marketplace add bujianhe/agent-penpal` → `claude plugin install agent-penpal@agent-penpal`
    - **手动拷目录**：整个 `agent-penpal/` 目录放进该 agent 的 skill 目录——Claude Code 是 `~/.claude/skills/agent-penpal/`（Windows：`%USERPROFILE%\.claude\skills\agent-penpal\`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把本文贴进去一样生效。
-2. **装 Node 21+**（先 `node -v`，没有或低于 21 就装）：
+2. **装 Node 18+**（先 `node -v`；低于 18 才需要装，20/22 LTS 都行）：
    - Windows：`winget install OpenJS.NodeJS.LTS`
    - macOS：`brew install node`
    - Linux：`curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs`
@@ -196,15 +196,15 @@ AGENT=<对话窗口短ID>
 | Windows cmd | `%USERPROFILE%\.claude\skills\agent-penpal\scripts\setup.mjs` |
 | Windows PowerShell | `$HOME\.claude\skills\agent-penpal\scripts\setup.mjs` |
 
-（ask.mjs 同目录。）整个 skill 目录拷到别的机器、对应 agent 里就能用——脚本纯 Node，只依赖 paseo CLI（`npm i -g @getpaseo/cli`，Node 21+）。
+（ask.mjs 同目录。）整个 skill 目录拷到别的机器、对应 agent 里就能用——脚本纯 Node，只依赖 paseo CLI（`npm i -g @getpaseo/cli`，Node 18+）。
 
 ## 排查
 
 | 现象 | 解法 |
 |---|---|
-| 提示找不到 paseo | 脚本会依次找 `$PASEO_CLI` → PATH → 桌面 App 自带那份。都没找到才是真没有：Node 21+；`npm i -g @getpaseo/cli`。装过还报找不到 = npm 全局 bin 不在 PATH（`npm prefix -g` 拿目录，Unix 加 `/bin`；`npm bin -g` 已在 npm 9+ 删除）。只装了桌面 App 的，软链 App 里那份即可（见"装到一台新机器"） |
+| 提示找不到 paseo | 脚本会依次找 `$PASEO_CLI` → PATH → 桌面 App 自带那份。都没找到才是真没有：Node 18+；`npm i -g @getpaseo/cli`。装过还报找不到 = npm 全局 bin 不在 PATH（`npm prefix -g` 拿目录，Unix 加 `/bin`；`npm bin -g` 已在 npm 9+ 删除）。只装了桌面 App 的，软链 App 里那份即可（见"装到一台新机器"） |
 | **Windows + Git Bash**：`which paseo` 能跑，脚本却说"找不到 paseo CLI" | Git Bash 的 PATH 可能是 POSIX 形式（`/d/work/...`），或 `paseo` 带 `.cmd` 后缀——早期版本这两种都探测不到。**新版已修**（PATH 转译 + 不再重复拼扩展名）。旧版应急：`PASEO_CLI='D:\path\to\paseo.cmd' node ask.mjs …` |
-| `--peer <名字>` 说"名册里没有" | 名字得**先入册**：收到名片后跑一次 `ask.mjs --remember "<名片>"`，之后"问 <名字>"才能点名。报错里会列出名册现在有谁。不想存就直接贴 LINK：`--host <LINK> --agent <AGENT>`。⚠️ **Paseo App 的 host 别名表（名字是对端 hostname）跟名片上的 `NAME=` 不是一套东西**，别混 |
+| `--peer <名字>` 说"名册里没有" | 名字得**先入册**：收到名片后跑一次 `ask.mjs --remember "<名片>"`，之后"问 <名字>"才能点名。报错里会列出名册现在有谁。不想存就直接贴 LINK：`--host <LINK> --agent <AGENT>` |
 | 配了自启，`paseo daemon status` 还是 not running | 多半是用了 `daemon start --foreground`——**这个参数已被移除**，要托管的是 **`<paseo 绝对路径> daemon run`**（见"让 daemon 一直在线"）。另外两个常见原因：只写了 `paseo` 没用绝对路径（守护进程不读 shell 的 rc，PATH 里没有它）；Linux 没做 `loginctl enable-linger "$USER"` |
 | 配对链接泄漏了 | `setup.mjs --rotate` 换新身份：老链接立即失效、所有对端换新名片（见"链接泄漏了怎么办"） |
 | 对端说"连不上你" | 可能你刚 --rotate 换过身份；把新名片重发给他 |

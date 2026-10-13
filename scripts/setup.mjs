@@ -168,7 +168,7 @@ function main() {
   }
   console.log(`→ 环境检查通过：Node ${process.version}，paseo CLI ${paseo.version}`);
   if (Number(process.versions.node.split(".")[0]) < 21) {
-    console.log("  （当前 Node 低于 21：peers.mjs 用不了；setup/ask 本身没问题）");
+    console.log("  （当前 Node 低于 18：建议升一下，20/22 LTS 都行）");
   }
 
   // 2. daemon 状态
