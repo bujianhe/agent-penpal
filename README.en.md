@@ -6,6 +6,16 @@ Let the AI agents on two machines talk to each other directly — whatever one o
 
 ---
 
+## In three lines
+
+| | |
+|---|---|
+| **What it solves** | Half your stack runs in the cloud, half is plugged into your desk, and you keep **copy-pasting findings by hand**. Now the two agents ask each other. |
+| **How much setup** | **Three steps.** It installs its own dependencies. No public IP, no port forwarding, no tunneling, **no SSH**. |
+| **What it costs** | **Nothing.** Free and open source (MIT), no server to run, nothing to buy — the two machines just need internet access. |
+
+---
+
 ## See it in 30 seconds
 
 Two machines, two agents. You say one thing on one of them:
