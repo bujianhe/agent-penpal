@@ -29,7 +29,7 @@ you (to the agent on machine A) > make a card for the PC over there
     === PENPAL CARD ===
     NAME=Mac Mini
     DESC=macOS side: has the Android SDK and adb — builds, logs, ask me
-    LINK=https://app.paseo.sh/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6…
+    LINK=https://xxxxxxxxxxxx
     AGENT=9e1e401
     ==================
 ```

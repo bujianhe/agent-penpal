@@ -67,7 +67,7 @@
 === PENPAL CARD ===
 NAME=Mac Mini
 DESC=macOS 端：有 Android SDK 和 adb，查构建、抓日志找我
-LINK=https://app.paseo.sh/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6…
+LINK=https://xxxxxxxxxxxx
 AGENT=9e1e401
 ==================
 ```
