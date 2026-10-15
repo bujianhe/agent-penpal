@@ -7,7 +7,8 @@
  *   1. 检查 paseo CLI（缺了提示 npm i -g @getpaseo/cli）
  *   2. 确保本地 daemon 在跑（paseo onboard；relay 默认开）→ 生成自己的配对链接
  *   3. 定好"对话窗口"：在 Paseo agent 窗口里跑 = 当前窗口；普通终端里跑 = 后台开一个常驻 agent
- *      （paseo run -d，默认 claude，--provider codex 可换）
+ *      （paseo run -d，默认 claude，--provider <任意 ACP provider> 可换，如 codex / cursor / gemini）
+ *      模型：显式 --model > 本机 .claude/settings.json 里配的 > paseo 内置默认（--no-model 强制走这个）
  *   4. 坐标写进 ~/.paseo-self-link / ~/.paseo-self-agent / ~/.paseo-self，打印名片
  *
  * 用法:
@@ -57,6 +58,68 @@ function readFileTrim(p) {
   }
 }
 
+// 本机 Claude Code 配的模型名。键名照抄 paseo 源码里的 CLAUDE_SETTINGS_MODEL_ENV_KEYS，
+// 顺序按"用户显式指定"优先（ANTHROPIC_MODEL 是 cc 自己的默认模型）。
+const CLAUDE_MODEL_KEYS = [
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+  "ANTHROPIC_DEFAULT_FABLE_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "ANTHROPIC_SMALL_FAST_MODEL",
+];
+
+function pickModelFromSettingsFile(file) {
+  let j;
+  try {
+    j = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+  if (!j || typeof j !== "object") return null;
+  const top = typeof j.model === "string" ? j.model.trim() : "";
+  if (top && top !== "default") {
+    return { model: top, from: `${file} 的 model` };
+  }
+  const env = j.env;
+  if (!env || typeof env !== "object") return null;
+  for (const k of CLAUDE_MODEL_KEYS) {
+    const v = typeof env[k] === "string" ? env[k].trim() : "";
+    if (v) return { model: v, from: `${file} 的 env.${k}` };
+  }
+  return null;
+}
+
+/**
+ * 读"这台机器打算用哪个模型"，用来在建对话窗口时显式传给 paseo。
+ *
+ * 为什么必须我们显式传：paseo 建 agent 时若没给模型，它会用**自己内置的 manifest**挑一个
+ * Claude 原生名字（按 defaultPriority + 本机 cc 版本过滤），**完全不读 settings.json**
+ * （settings.json 里的模型只会被追加进"可选列表"，永远不带 isDefault）。
+ * 自建网关的环境下那个原生名字网关多半不认，窗口就起不来——表现为"对面连不上"。
+ *
+ * 顺序：项目 local > 项目 > 用户 local > 用户（照 Claude Code 自己的优先级），
+ * 都没有再退回环境变量。
+ */
+function resolveClaudeModel(cwd) {
+  const files = [];
+  if (cwd) {
+    files.push(path.join(cwd, ".claude", "settings.local.json"));
+    files.push(path.join(cwd, ".claude", "settings.json"));
+  }
+  files.push(path.join(HOME_DIR, ".claude", "settings.local.json"));
+  files.push(path.join(HOME_DIR, ".claude", "settings.json"));
+  for (const f of files) {
+    const hit = pickModelFromSettingsFile(f);
+    if (hit) return hit;
+  }
+  for (const k of CLAUDE_MODEL_KEYS) {
+    const v = (process.env[k] || "").trim();
+    if (v) return { model: v, from: `环境变量 ${k}` };
+  }
+  return null;
+}
+
 // 首次生成简介用：从仓库的 README/CLAUDE.md/AGENTS.md 里提取第一段有信息量的正文
 //（跳过 frontmatter、标题、徽章/图片、列表项），截到 200 字——纯读取，零模型参与
 function extractRepoBlurb(dir) {
@@ -96,6 +159,8 @@ function parseArgs(argv) {
     name: null,
     desc: null,
     provider: "claude",
+    model: null,
+    noModel: false,
     cwd: null,
     agent: null,
     home: null,
@@ -110,6 +175,8 @@ function parseArgs(argv) {
     if (a === "--name") o.name = argv[++i];
     else if (a === "--desc") o.desc = argv[++i];
     else if (a === "--provider") o.provider = argv[++i];
+    else if (a === "--model") o.model = argv[++i];
+    else if (a === "--no-model") o.noModel = true;
     else if (a === "--cwd") o.cwd = argv[++i];
     else if (a === "--agent") o.agent = argv[++i];
     else if (a === "--home") o.home = argv[++i];
@@ -130,7 +197,17 @@ function parseArgs(argv) {
 const HELP = `用法: node setup.mjs [选项]
   --name <名字>      本机在对话里的名字（默认沿用已存的，或主机名）
   --desc <一句话>    名片上的一句话介绍（≤200 字；不给就自动用对话窗口在 Paseo 里的标题）
-  --provider <名字>  新开对话窗口用哪个 agent（默认 claude，可 codex）
+  --provider <名字>  新开对话窗口用哪个 agent（默认 claude）。可填 paseo 支持的任意 ACP
+                     provider，如 codex / cursor / gemini / cline / qwen-code……注意 provider
+                     决定的是"paseo 拉起的那个 agent"，用的得是它的命令行工具：
+                     cursor 走的是 cursor-agent CLI（不是 Cursor IDE 里的会话）。
+  --model <名字>     新开对话窗口用哪个模型。不给的话自动从本机 Claude Code 配置里读
+                     （项目/用户的 .claude/settings.json 的 model 或 env.ANTHROPIC_MODEL 等，
+                     最后才看环境变量）；都读不到才让 paseo 自己决定。
+                     为什么要管这个：paseo 自己决定时会用内置 manifest 挑一个 Claude 原生
+                     名字（如 claude-opus-5-5），**不读 settings.json**。自建网关的环境下那个
+                     名字网关可能不认，窗口就起不来（对方表现为"连不上"）。
+  --no-model         完全不传模型，直接用 paseo 内置的默认值（排查对比用）
   --cwd <目录>       新开窗口的工作目录（默认用户主目录）
   --agent <ID>       不新开，直接用已有的 Paseo 窗口当对话窗口
   --home <目录>      Paseo home（多开/测试用，默认 ~/.paseo）
@@ -212,7 +289,7 @@ function main() {
     console.log(
       currentWindow
         ? `  3) 对话窗口 = ${args.agent ? "--agent 指定" : "当前 Paseo agent 窗口"}：${currentWindow}（不新开）`
-        : `  3) paseo run -d --json --provider ${args.provider} --mode bypassPermissions --title 跨主机联动 --cwd ${args.cwd || HOME_DIR} "<启动语>"`,
+        : `  3) paseo run -d --json --provider ${args.provider}${args.model ? ` --model ${args.model}` : args.noModel ? "" : " --model <从本机 .claude/settings.json 读到的模型>"} --mode bypassPermissions --title 跨主机联动 --cwd ${args.cwd || HOME_DIR} "<启动语>"`,
     );
     console.log(
       args.home
@@ -343,7 +420,12 @@ function main() {
             : null;
           if (hit0) {
             agentId = stored;
-            agentNote = "沿用已存的对话窗口（~/.paseo-self-agent，还在）";
+            // 会话已经有模型就用它的（不去改）；顺手把模型名显示出来，方便对不上时一眼看到
+            const m =
+              typeof hit0.provider === "string" && hit0.provider.includes("/")
+                ? hit0.provider.split("/").slice(1).join("/")
+                : null;
+            agentNote = `沿用已存的对话窗口（~/.paseo-self-agent，还在${m ? ` · 模型 ${m}` : ""}）`;
             autoWindowTitle = typeof hit0.name === "string" && hit0.name ? hit0.name : null;
             reused = true;
           }
@@ -354,23 +436,64 @@ function main() {
     }
     if (!reused) {
       const cwd = args.cwd || HOME_DIR;
+
+      // 决定模型：--model 显式 > 本机 cc 配置 > 不传（交给 paseo 内置默认值）。
+      // 中间这条是关键：paseo 默认会挑一个 Claude 原生名字且不看 settings.json，
+      // 自建网关环境下可能直接把窗口卡死，所以能读到本机配置就一定显式传过去。
+      let modelArg = null;
+      let modelNote = "";
+      if (args.model) {
+        modelArg = args.model;
+        modelNote = "--model 指定";
+      } else if (!args.noModel) {
+        const hit = resolveClaudeModel(cwd);
+        if (hit) {
+          modelArg = hit.model;
+          modelNote = hit.from;
+        }
+      }
+
       console.log(`→ 开常驻对话窗口（provider=${args.provider}，cwd=${cwd}）…`);
+      if (modelArg) {
+        console.log(`  模型：${modelArg}`);
+        console.log(`       （来自 ${modelNote}）`);
+      } else {
+        console.log("  模型：不指定 —— 交给 paseo 内置默认值。");
+        console.log("       它挑的是 Claude 原生名字且不读 settings.json，自建网关下可能不被认；");
+        console.log("       窗口起来了却联系不上对方时，用 --model <名字> 手动给一个。");
+      }
+
       // --mode bypassPermissions：对话窗口的职责就是执行对方请求（adb、查文件…），默认权限模式下第一个
       // 工具调用就卡审批、把整条对话拖到超时（实测踩到）。链接本来=daemon 全权，这里不新增暴露面。
       // 注意要用全名 bypassPermissions（inspect 的 AvailableModes 里的规范值，"bypass" 简写不保证认）
-      const r = paseoRun(
-        ["run", "-d", "--json", "--provider", args.provider, "--mode", "bypassPermissions", "--title", "跨主机联动", "--cwd", cwd, BOOTSTRAP_PROMPT],
-        clientOpt({ timeout: 240000 }),
-      );
+      const runArgs = [
+        "run",
+        "-d",
+        "--json",
+        "--provider",
+        args.provider,
+        "--mode",
+        "bypassPermissions",
+        "--title",
+        "跨主机联动",
+        "--cwd",
+        cwd,
+      ];
+      if (modelArg) runArgs.push("--model", modelArg);
+      runArgs.push(BOOTSTRAP_PROMPT);
+      const r = paseoRun(runArgs, clientOpt({ timeout: 240000 }));
       const full = (r.all.match(/"agentId"\s*:\s*"([^"]+)"/) || [])[1] || null;
       if (!full) {
-        console.error("开对话窗口失败（provider 的 agent CLI 装了吗？比如 --provider codex 需要先装 codex）：");
+        console.error("开对话窗口失败（provider 的 agent CLI 装了吗？比如 --provider codex 需要先装 codex）；");
+        console.error(`当前用的是 --provider ${args.provider}。换一个本机已经装好的试试，比如 --provider claude / codex；`);
+        console.error("paseo 支持的 provider 不止这两个：cursor（需要 cursor-agent CLI）、gemini、cline、qwen-code 等都能填。");
+        if (modelArg) console.error(`模型用的是 ${modelArg}（来自 ${modelNote}）——如果是自建网关，确认网关认这个名字。`);
         console.error(r.all || `（退出码 ${r.code}）`);
         process.exitCode = 1;
         return;
       }
       agentId = full;
-      agentNote = `新开的常驻窗口（${args.provider}）`;
+      agentNote = `新开的常驻窗口（${args.provider}${modelArg ? ` · ${modelArg}` : ""}）`;
     }
   }
 

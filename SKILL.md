@@ -29,6 +29,8 @@ description: 让两台机器上的 agent（Claude Code / Codex / OpenClaw）跨�
      - Linux：deb/rpm 在 `/opt/Paseo/resources/bin/paseo`；AppImage 用户通常已有 `~/.local/bin/paseo`
      - Windows：`%LOCALAPPDATA%\Programs\<安装目录>\resources\bin\paseo.cmd`（目录名不固定，脚本用扫的）
    - **没装 App 的**：`npm i -g @getpaseo/cli`，然后 `paseo --version` 验证。
+4. **确认这台机器有一个 paseo 拉得起来的 agent CLI**（"对话窗口"要用它）。默认 `claude`，也可以是 `codex` / `cursor-agent` / `gemini` / `cline` 等——paseo 认识 30 多个 ACP provider，`setup.mjs --provider <名字>` 指定即可。
+   **`cursor` 指的是 `cursor-agent` 这个命令行工具**（`cursor-agent acp`），**不是 Cursor IDE 里的会话**——paseo 是"自己拉起 agent 进程"的宿主，接不进 IDE 里已有的对话。机器上只有 Cursor IDE、没有 `claude`/`codex`/`cursor-agent` 任何一个，`setup.mjs` 会在开窗口那步失败（报错里会提示换 provider）。
 
 自查一行：`node -v && paseo --version`。（脚本自己会依次找 `$PASEO_CLI` → PATH → 桌面 App 自带那份，所以 `paseo` 不在 PATH 上也能跑。）
 **`paseo --version` 报找不到、但确实装过** = npm 全局 bin 不在 PATH（macOS/Linux 的 GUI agent 常见）：`npm prefix -g` 拿到目录，Unix 再拼上 `/bin` 就是全局 bin 目录（Windows 的 prefix 本身就是 bin 目录），把它加进 PATH。注意 `npm bin -g` 在 npm 9+ 已被删除，别用。
@@ -69,6 +71,8 @@ node <skill目录>/scripts/setup.mjs --name <本机名字，如 电脑>
 ```
 
 一条龙：检查环境（缺 paseo CLI 直接给安装命令）→ 起本地 daemon（已在跑就跳过）→ 生成配对链接 → 定对话窗口（在 Paseo agent 窗口里跑就用**当前会话**；普通终端里跑：**先沿用 `~/.paseo-self-agent` 里已存的对话窗口**——还在就直接用，重复跑不乱开窗；没有才后台新开一个常驻 agent，默认 `--mode bypassPermissions` 授权，否则执行对方请求时第一个工具调用就卡权限审批）→ 坐标写进 `~/.paseo-self-*` → 打印名片。**把名片原样转给用户**，让用户发给对方。
+
+**模型怎么定**（新开窗口时）：`--model` 显式给 > 从本机 `.claude/settings.json` 读（`model` 或 `env.ANTHROPIC_MODEL` 等，最后兜底环境变量）> 都不给才让 paseo 自己决定。**为什么不能全交给 paseo**：它建窗口时用的是**自己内置的 manifest**（按 `defaultPriority` + 本机 Claude Code 版本挑，如 `claude-opus-5-5`），**完全不读 settings.json**——settings.json 里的模型只会被追加进"可选列表"，永远不带 `isDefault`。自建网关/非官方端点下那个原生名多半不存在，窗口就起不来（表现是对方"连不上"）。沿用已有窗口时**不动它的模型**，只把模型名显示出来方便核对；要换用 `switch-model.mjs`（见下）。
 > **一张就够**：对方拿到这张名片发第一条消息时，`ask.mjs` 会自动把它自己的名片附在消息开头——所以对面也拿到了你的坐标，双向就通了。**不需要两边各递一次。**
 
 **名片的一句话介绍（可选，≤200 字）**：内容是**职责**（仓库级——这台机器/这个项目能帮对方处理哪方面问题、什么时候该找你；例：`--desc "有安卓源码和 adb：查安卓构建、抓日志、跑真机测试时找我"`）。不传的话，**首次** setup 会自动从当前目录的 README.md / CLAUDE.md / AGENTS.md 提取一句；都没有才退而用对话窗口标题；生成后固定不变（想刷新：删 `~/.paseo-self-desc` 再跑，或 `--desc` 手动覆盖）。想措辞更贴切，agent 可以先读 README/CLAUDE.md 自己总结一句再传 `--desc`。**拿不准就留空**——宁可没有这行，也别把文档里的示例、或自己猜的职责硬编进去（这行是发给别人看的"你能帮什么"，编错了比空着更糟）。**"当前在处理什么"这类会变的信息别写进静态简介**；需要时用单条覆盖：`ask.mjs --self-desc "当前在处理：XX"`。
@@ -88,7 +92,7 @@ __PASEO__ daemon run
 ⚠️ **三个坑**：
 
 1. **是 `daemon run`，不是 `daemon start`。** `daemon start` 那套 `--foreground` **已被移除**，用了会直接报错 `--foreground was removed`。
-2. **daemon 要能找到 `claude` / `codex`**（来消息时要拉起它们续聊）。如果它们在 `~/.local/bin` 这类非标准位置，守护进程的最小 PATH 里没有——unit 里得显式 `Environment=PATH=<你的 PATH>`。
+2. **daemon 要能找到你的 provider CLI**（`claude` / `codex` / `cursor-agent`……来消息时要拉起它们续聊）。如果它们在 `~/.local/bin` 这类非标准位置，守护进程的最小 PATH 里没有——unit 里得显式 `Environment=PATH=<你的 PATH>`。
 3. **Linux 无桌面环境**必须 `loginctl enable-linger "$USER"`，否则你一退出登录它就停。
 
 **各平台怎么托管那条命令**：
@@ -167,6 +171,24 @@ node <skill目录>/scripts/setup.mjs --rotate --confirm
 - 注意：`paseo daemon set-password` **管不了这条路**——relay 连接不走 daemon 密码校验，链接本身就是唯一凭证（这就是"当密钥保管"的原因）。
 - 手动版（脚本不能用时）：`paseo daemon stop` → 把 `<PASEO_HOME>/server-id` 和 `<PASEO_HOME>/daemon-keypair.json` 改名/删除 → `paseo onboard --voice disable --timeout 240` → `paseo daemon pair --json`。本地 CLI 没有现成的 rotate 命令，就这四步。
 
+## 给已有窗口换模型（不动名片）
+
+**什么时候需要**：窗口的模型在你网关/端点上不存在，表现是"**窗口起来了、消息也投递成功，但永远没有答复**"。典型场景：paseo 默认挑的是内置 manifest 里的 Claude 原生名（`claude-opus-5-5` 之类），而你的自建网关只认自己那套名字。
+
+```bash
+node <skill目录>/scripts/switch-model.mjs <窗口ID|前缀> <新模型名>
+# 先看有哪些窗口：      paseo ls -a -g --json
+# 先看模型名能填什么：  paseo provider models claude
+# 只看计划不动手：      加 --dry-run
+```
+
+**为什么需要专门的脚本**（三条死路都实测过）：daemon 的权威状态在**内存**里，磁盘只是它写出去的副本。所以"改文件 + `agent reload`"会被覆盖，"`agent stop` + 改文件 + reload"也一样。可行做法只有：**停 daemon → 改齐 5 处 → 起 daemon**。5 处分别是 `agents/*.json` 里的 `config.model` / `runtimeInfo.model` / `runtimeInfo.extra.runtimeModel` / `persistence.metadata.model`，以及 `creations/*.json` 里的 `snapshot.agent.model`（daemon 启动时是从这个 snapshot 恢复的）。
+
+- **安全**：全程备份 → 改 → 停/起 → `inspect` 校验；**没生效会自动回滚并重新起 daemon**，不会留下半改状态。
+- **代价**：会停再起一次 daemon，**正在跑的窗口（含对话窗口）会中断**；但 **agent ID 和 LINK 都不变** → 名片不用重出、对方不用重新配对，重发一次消息就续上。目标窗口就是你自己所在的窗口时脚本会拦住（加 `--force` 才硬来）。
+- **风险**：这是改 paseo 的内部状态文件，**跨版本可能变 schema**。脚本会校验，失败就回滚；真要长期用，优先用 paseo 界面里的模型选择器（那里走的是 daemon 的正规接口）。
+- 顺带：**`paseo agent reload` 不会改窗口 ID**（实测），所以它不算"重新生成名片"。
+
 ## 对话约定（防死锁）
 
 1. **严格轮流**：问 → 答 → 问 → 答。发起方阻塞等答复（最长 10 分钟），这期间别再往对方发新消息。（`--async` 模式例外：发完就走、不等——先记下坐标，回头 `--replies` 拉。）
@@ -213,6 +235,7 @@ AGENT=<对话窗口短ID>
 | ask.mjs 报"对端没有窗口 X" | AGENT 抄错或窗口被删；报错里列了对方现有窗口；让对方重跑 setup.mjs 出新名片 |
 | 发完超时 | 对方窗口在忙或没开；ask.mjs 自动再等一轮，之后重试 |
 | 对方窗口"卡住"没动静 / ask.mjs 报 permission | 窗口在等权限审批：**直接远程切模式** `paseo agent mode <窗口ID> bypassPermissions --host "<链接>"`（最省事）；或 `paseo permit ls --host "<链接>"` 看、`paseo permit allow <窗口ID> --all --host "<链接>"` 放行。新开窗口已默认 bypass |
+| **窗口起来了、消息也投递成功，但永远没有答复**（对方 agent 像是没收到 / 一直卡） | 大概率是**模型名那边的机器不认**。自查两条：`paseo agent inspect <窗口ID> --json`（看 Model）和 `paseo provider models claude`（看 paseo 眼里有哪些）。**根因**：paseo 建窗口时若没显式给模型，会用它内置 manifest 挑一个 Claude 原生名（按 `defaultPriority` + 本机 Claude Code 版本过滤，如 `claude-opus-5-5`），**完全不读 `settings.json`**——settings.json 里的模型只会被追加进"可选列表"，永远不带 `isDefault`。自建网关（或任何非 Anthropic 官方端点）下那个原生名多半不存在，进程就发不出请求。**解法**：出新名片时让脚本自己从本机 cc 配置读（新版 `setup.mjs` 默认这么做），或建窗口时 `--model <网关认的名字>` 手动指定。**窗口已经建好了**才发现的，用 `switch-model.mjs <窗口ID> <新模型名>` 换（见"给已有窗口换模型"）。**改 `settings.json` 是没用的**（已实测+源码确认），因为模型在**建窗口那一刻**就写死进 agent 记录的 `config.model`，之后没有任何代码重新解析（`paseo agent update` 连 `--model` 参数都没有） |
 | --async 发出后怎么收答复 | `ask.mjs --replies <LINK> <AGENT>` 拉对方窗口最新内容（结论通常在末尾）；对方装了 skill 也可能主动发进你窗口（可选） |
 | 提示"本条未附名片" | 拿不到本机对话窗口ID；先跑 setup.mjs |
 | 两边互等卡死 | 违反严格轮流（被问方中途发了消息）；各自超时重来，反问写答复末尾 |
