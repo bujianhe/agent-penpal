@@ -29,8 +29,9 @@ description: 让两台机器上的 agent（Claude Code / Codex / OpenClaw）跨�
      - Linux：deb/rpm 在 `/opt/Paseo/resources/bin/paseo`；AppImage 用户通常已有 `~/.local/bin/paseo`
      - Windows：`%LOCALAPPDATA%\Programs\<安装目录>\resources\bin\paseo.cmd`（目录名不固定，脚本用扫的）
    - **没装 App 的**：`npm i -g @getpaseo/cli`，然后 `paseo --version` 验证。
-4. **确认这台机器有一个 paseo 拉得起来的 agent CLI**（"对话窗口"要用它）。默认 `claude`，也可以是 `codex` / `cursor-agent` / `gemini` / `cline` 等——paseo 认识 30 多个 ACP provider，`setup.mjs --provider <名字>` 指定即可。
-   **`cursor` 指的是 `cursor-agent` 这个命令行工具**（`cursor-agent acp`），**不是 Cursor IDE 里的会话**——paseo 是"自己拉起 agent 进程"的宿主，接不进 IDE 里已有的对话。机器上只有 Cursor IDE、没有 `claude`/`codex`/`cursor-agent` 任何一个，`setup.mjs` 会在开窗口那步失败（报错里会提示换 provider）。
+4. **确认这台机器有一个 paseo 拉得起来的 agent CLI**（"对话窗口"要用它）。**先跑 `paseo provider ls` 看你机器上有哪些 provider、哪家 status 是 `available`**——只有 available 的才真能用。
+   **一个容易踩的坑**：paseo 内置一份 30 多条目的 **ACP 目录**（`cursor` / `gemini` / `cline` / `qwen-code`…都在里面），那是"可以装、装了就能注册"的清单，**不等于你机器上已注册的 provider**。没装对应 CLI 时 `--provider gemini` 会直接报 `Unknown provider: gemini`。这版 paseo 里真正注册的是 `claude` / `codex` / `copilot` / `opencode` / `pi` / `omp` / `antigravity` / `muse`，而哪些能用取决于对应 CLI 装没装。
+   **`cursor` 指的是 `cursor-agent` 这个命令行工具**（`cursor-agent acp`），**不是 Cursor IDE 里的会话**——paseo 是"自己拉起 agent 进程"的宿主，接不进 IDE 里已有的对话。
 
 自查一行：`node -v && paseo --version`。（脚本自己会依次找 `$PASEO_CLI` → PATH → 桌面 App 自带那份，所以 `paseo` 不在 PATH 上也能跑。）
 **`paseo --version` 报找不到、但确实装过** = npm 全局 bin 不在 PATH（macOS/Linux 的 GUI agent 常见）：`npm prefix -g` 拿到目录，Unix 再拼上 `/bin` 就是全局 bin 目录（Windows 的 prefix 本身就是 bin 目录），把它加进 PATH。注意 `npm bin -g` 在 npm 9+ 已被删除，别用。
@@ -71,6 +72,8 @@ node <skill目录>/scripts/setup.mjs --name <本机名字，如 电脑>
 ```
 
 一条龙：检查环境（缺 paseo CLI 直接给安装命令）→ 起本地 daemon（已在跑就跳过）→ 生成配对链接 → 定对话窗口（在 Paseo agent 窗口里跑就用**当前会话**；普通终端里跑：**先沿用 `~/.paseo-self-agent` 里已存的对话窗口**——还在就直接用，重复跑不乱开窗；没有才后台新开一个常驻 agent，默认 `--mode bypassPermissions` 授权，否则执行对方请求时第一个工具调用就卡权限审批）→ 坐标写进 `~/.paseo-self-*` → 打印名片。**把名片原样转给用户**，让用户发给对方。
+
+**provider 怎么定**（新开窗口时）：`--provider` 显式给 > **当前会话用的那个**（脚本 inspect `$PASEO_AGENT_ID` 问 daemon，不猜——在 codex 窗口里跑就自动是 codex）> 都不行才 `claude`。dump 在 dry-run 计划里能看到"provider：X（来源：…）"。
 
 **模型怎么定**（新开窗口时）：`--model` 显式给 > **按 provider 读本机配置** > 都不给才让 paseo 自己决定。目前认两个 provider：`claude` 读项目/用户的 `.claude/settings.json`（顶层 `model`，或 `env.ANTHROPIC_MODEL` 等，最后兜底环境变量），`codex` 读 `~/.codex/config.toml` 的顶层 `model`（注意 codex 的名字没有 Claude Code 那套 `[1M]` 后缀约定）。**其它 provider 不猜**——读不到就不传，宁可交给 paseo。**为什么不能全交给 paseo**：它建窗口时用的是**自己内置的 manifest**（按 `defaultPriority` + 本机 Claude Code 版本挑，如 `claude-opus-5-5`），**不读任何配置文件**——settings.json 里的模型只会被追加进"可选列表"，永远不带 `isDefault`。自建网关/非官方端点下那个原生名多半不存在，窗口就起不来（表现是对方"连不上"）。沿用已有窗口时**不动它的模型**，只把模型名显示出来方便核对；要换用 `switch-model.mjs`（见下）。
 

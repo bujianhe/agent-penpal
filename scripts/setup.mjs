@@ -7,7 +7,7 @@
  *   1. 检查 paseo CLI（缺了提示 npm i -g @getpaseo/cli）
  *   2. 确保本地 daemon 在跑（paseo onboard；relay 默认开）→ 生成自己的配对链接
  *   3. 定好"对话窗口"：在 Paseo agent 窗口里跑 = 当前窗口；普通终端里跑 = 后台开一个常驻 agent
- *      （paseo run -d，默认 claude，--provider <任意 ACP provider> 可换，如 codex / cursor / gemini）
+ *      （paseo run -d；provider 默认沿用当前会话，见下面 provider 解析）
  *      模型：显式 --model > 按 provider 读本机配置（claude→.claude/settings.json，
  *            codex→.codex/config.toml）> paseo 内置默认（--no-model 强制走这个）
  *   4. 坐标写进 ~/.paseo-self-link / ~/.paseo-self-agent / ~/.paseo-self，打印名片
@@ -181,6 +181,22 @@ function pickBypassMode(names) {
   return names.find((n) => /full|bypass|danger|yolo/i.test(n)) || names[0] || null;
 }
 
+/**
+ * 当前这个会话是谁开的？—— 直接问 daemon，别猜。
+ * 在 Paseo 窗口里跑时 PASEO_AGENT_ID 是有值的，inspect 一下就知道 provider 是 claude 还是 codex。
+ * 这样"该读哪个配置文件""该用哪个权限模式"就都有依据了，不用写死 claude。
+ */
+function currentWindowProvider(opt) {
+  const id = process.env.PASEO_AGENT_ID;
+  if (!id) return null;
+  const r = paseoRun(["agent", "inspect", id, "--json"], opt);
+  // ⚠️ 不要 JSON.parse：Windows 上 paseo 输出的路径反斜杠没转义，是非法 JSON（实测）。
+  // 我们只要一个字段，正则取最稳。
+  const m = r.all.match(/"Provider"\s*:\s*"([^"]+)"/);
+  if (!m) return null;
+  return String(m[1]).split("/")[0] || null; // "claude/deepseek-…" → "claude"
+}
+
 // 首次生成简介用：从仓库的 README/CLAUDE.md/AGENTS.md 里提取第一段有信息量的正文
 //（跳过 frontmatter、标题、徽章/图片、列表项），截到 200 字——纯读取，零模型参与
 function extractRepoBlurb(dir) {
@@ -219,7 +235,7 @@ function parseArgs(argv) {
   const o = {
     name: null,
     desc: null,
-    provider: "claude",
+    provider: null,
     model: null,
     noModel: false,
     cwd: null,
@@ -258,10 +274,12 @@ function parseArgs(argv) {
 const HELP = `用法: node setup.mjs [选项]
   --name <名字>      本机在对话里的名字（默认沿用已存的，或主机名）
   --desc <一句话>    名片上的一句话介绍（≤200 字；不给就自动用对话窗口在 Paseo 里的标题）
-  --provider <名字>  新开对话窗口用哪个 agent（默认 claude）。可填 paseo 支持的任意 ACP
-                     provider，如 codex / cursor / gemini / cline / qwen-code……注意 provider
-                     决定的是"paseo 拉起的那个 agent"，用的得是它的命令行工具：
-                     cursor 走的是 cursor-agent CLI（不是 Cursor IDE 里的会话）。
+  --provider <名字>  新开对话窗口用哪个 agent。**不给就自动定**：在 Paseo 窗口里跑 → 沿用当前
+                     会话用的那个（问 daemon，不猜）；否则用 claude。
+                     能填的是 paseo **已注册**的 provider——用 paseo provider ls 看有哪些，
+                     以及哪家 status 是 available（没装的会标 unavailable/error）。
+                     ⚠️ 注意 provider 用的是那家的**命令行工具**：cursor 走的是 cursor-agent
+                     CLI，不是 Cursor IDE 里的会话（paseo 是"自己拉起 agent 进程"的宿主）。
   --model <名字>     新开对话窗口用哪个模型。不给的话按 provider 自动读本机配置：
                        claude → 项目/用户的 .claude/settings.json（顶层 model，或
                                 env.ANTHROPIC_MODEL 等，最后兜底环境变量）
@@ -332,6 +350,22 @@ function main() {
   const clientOpt = (extra = {}) =>
     daemonListen ? { kind: "host", host: daemonListen, ...extra } : { kind: "home", home: args.home, ...extra };
 
+  // provider：显式 --provider > 当前会话用的那个（问 daemon）> claude。
+  // 中间这条让"在 codex 窗口里跑 setup"自动就用 codex，不用人记着传参，
+  // 而且决定了后面读哪个配置文件、用哪个权限模式。
+  let provider = args.provider; // 显式 --provider 优先；没给才去问 daemon / 兜底 claude
+  let providerFrom = "--provider 指定";
+  if (!provider) {
+    const detected = currentWindowProvider(clientOpt({ timeout: 60000 }));
+    if (detected) {
+      provider = detected;
+      providerFrom = "当前会话";
+    } else {
+      provider = "claude";
+      providerFrom = "默认（没在 Paseo 窗口里跑，也没给 --provider）";
+    }
+  }
+
   // --home 指到别的 daemon 时，环境里注入的 PASEO_AGENT_ID 属于原 daemon 的窗口，
   // 拿来当对话窗口会开出指向错 daemon 的名片——这时不认它（要复用就显式 --agent）
   const currentWindow = args.agent || (args.home ? null : process.env.PASEO_AGENT_ID) || null;
@@ -340,6 +374,7 @@ function main() {
     const onboardArgs = ["onboard", "--voice", "disable", "--timeout", "240"];
     if (args.port) onboardArgs.push("--port", String(args.port));
     console.log("[dry-run] 不会真的执行。计划：");
+    console.log(`  provider：${provider}（来源：${providerFrom}）`);
     if (args.rotate) {
       console.log(
         `  0) --rotate 身份轮换：停 daemon → 备份并重置 ${args.home || daemonHome || path.join(HOME_DIR, ".paseo")} 下的 server-id / daemon-keypair.json → 老链接失效`,
@@ -349,7 +384,7 @@ function main() {
       `  1) ${daemonRunning ? "（本地 daemon 已在跑，跳过启动）" : `paseo ${onboardArgs.join(" ")}`}`,
     );
     console.log("  2) paseo daemon pair --json   → 本机配对链接");
-    const dryBase = String(args.provider).split("/")[0];
+    const dryBase = String(provider).split("/")[0];
     const dryMode = NO_APPROVAL_MODE[dryBase];
     const dryModelHint = args.model
       ? ` --model ${args.model}`
@@ -361,7 +396,7 @@ function main() {
     console.log(
       currentWindow
         ? `  3) 对话窗口 = ${args.agent ? "--agent 指定" : "当前 Paseo agent 窗口"}：${currentWindow}（不新开）`
-        : `  3) paseo run -d --json --provider ${args.provider}${dryMode ? ` --mode ${dryMode}` : " --mode <paseo 默认>"}${dryModelHint} --title 跨主机联动 --cwd ${args.cwd || HOME_DIR} "<启动语>"`,
+        : `  3) paseo run -d --json --provider ${provider}${dryMode ? ` --mode ${dryMode}` : " --mode <paseo 默认>"}${dryModelHint} --title 跨主机联动 --cwd ${args.cwd || HOME_DIR} "<启动语>"`,
     );
     console.log(
       args.home
@@ -512,7 +547,7 @@ function main() {
       // 决定模型：--model 显式 > 本机 cc/codex 配置 > 不传（交给 paseo 内置默认值）。
       // 中间这条是关键：paseo 默认会挑一个 Claude 原生名字且不看 settings.json，
       // 自建网关环境下可能直接把窗口卡死，所以能读到本机配置就一定显式传过去。
-      const providerBase = String(args.provider).split("/")[0];
+      const providerBase = String(provider).split("/")[0];
       const providerKnown = Object.prototype.hasOwnProperty.call(PROVIDER_MODEL_READERS, providerBase);
       let modelArg = null;
       let modelNote = "";
@@ -520,14 +555,15 @@ function main() {
         modelArg = args.model;
         modelNote = "--model 指定";
       } else if (!args.noModel && providerKnown) {
-        const hit = resolveProviderModel(args.provider, cwd);
+        const hit = resolveProviderModel(provider, cwd);
         if (hit) {
           modelArg = hit.model;
           modelNote = hit.from;
         }
       }
 
-      console.log(`→ 开常驻对话窗口（provider=${args.provider}，cwd=${cwd}）…`);
+      console.log(`→ 开常驻对话窗口（provider=${provider}，cwd=${cwd}）…`);
+      if (providerFrom !== "--provider 指定") console.log(`  provider 来源：${providerFrom}`);
       if (modelArg) {
         console.log(`  模型：${modelArg}`);
         console.log(`       （来自 ${modelNote}）`);
@@ -549,7 +585,7 @@ function main() {
       // 已知的查表；不知道的先不传 --mode，失败且报错里列了可用模式时，挑个最像"免审批"的重试。
       const modeFor = (providerBase) => NO_APPROVAL_MODE[providerBase] ?? null;
       const buildRunArgs = (mode) => {
-        const a = ["run", "-d", "--json", "--provider", args.provider];
+        const a = ["run", "-d", "--json", "--provider", provider];
         if (mode) a.push("--mode", mode);
         a.push("--title", "跨主机联动", "--cwd", cwd);
         if (modelArg) a.push("--model", modelArg);
@@ -577,8 +613,8 @@ function main() {
 
       if (!full) {
         console.error("开对话窗口失败（provider 的 agent CLI 装了吗？比如 --provider codex 需要先装 codex）；");
-        console.error(`当前用的是 --provider ${args.provider}。换一个本机已经装好的试试，比如 --provider claude / codex；`);
-        console.error("paseo 支持的 provider 不止这两个：cursor（需要 cursor-agent CLI）、gemini、cline、qwen-code 等都能填。");
+        console.error(`当前用的是 --provider ${provider}。换一个本机已经装好的试试，比如 --provider claude / codex；`);
+        console.error("先跑 paseo provider ls 看这台机器上哪些 provider 是 available——只有 available 的才能真用。");
         if (modelArg) console.error(`模型用的是 ${modelArg}（来自 ${modelNote}）——如果是自建网关，确认网关认这个名字。`);
         console.error(`权限模式用的是「${modeFor(providerBase) ?? "(paseo 默认)"}」——模式名各 provider 不同，报错里若有 "Available modes" 会看到可选项。`);
         console.error(r.all || `（退出码 ${r.code}）`);
@@ -586,7 +622,7 @@ function main() {
         return;
       }
       agentId = full;
-      agentNote = `新开的常驻窗口（${args.provider}${modelArg ? ` · ${modelArg}` : ""}）`;
+      agentNote = `新开的常驻窗口（${provider}${modelArg ? ` · ${modelArg}` : ""}）`;
     }
   }
 
