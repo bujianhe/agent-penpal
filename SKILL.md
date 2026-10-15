@@ -185,7 +185,8 @@ node <skill目录>/scripts/switch-model.mjs <窗口ID|前缀> <新模型名>
 **为什么需要专门的脚本**（三条死路都实测过）：daemon 的权威状态在**内存**里，磁盘只是它写出去的副本。所以"改文件 + `agent reload`"会被覆盖，"`agent stop` + 改文件 + reload"也一样。可行做法只有：**停 daemon → 改齐 5 处 → 起 daemon**。5 处分别是 `agents/*.json` 里的 `config.model` / `runtimeInfo.model` / `runtimeInfo.extra.runtimeModel` / `persistence.metadata.model`，以及 `creations/*.json` 里的 `snapshot.agent.model`（daemon 启动时是从这个 snapshot 恢复的）。
 
 - **安全**：全程备份 → 改 → 停/起 → `inspect` 校验；**没生效会自动回滚并重新起 daemon**，不会留下半改状态。
-- **代价**：会停再起一次 daemon，**正在跑的窗口（含对话窗口）会中断**；但 **agent ID 和 LINK 都不变** → 名片不用重出、对方不用重新配对，重发一次消息就续上。目标窗口就是你自己所在的窗口时脚本会拦住（加 `--force` 才硬来）。
+- **自动脱钩（很重要）**：agent 进程是 **daemon 的子进程**（实测确认），所以脚本要是跑在 daemon 底下（典型情况：你就从某个对话窗口里调它），`daemon stop` 会把**脚本自己一起杀掉**——永远走不到"起 daemon"，那台机器就留在失联状态。脚本会检测到这点并**先把自己转成独立进程**再干活，命令立即返回，结果看 `<PASEO_HOME>/switch-model.log`。等约 20 秒自己回来校验即可。
+- **代价**：会停再起一次 daemon，**正在跑的窗口（含对话窗口）会中断**；但 **agent ID 和 LINK 都不变** → 名片不用重出、对方不用重新配对，重发一次消息就续上。目标窗口就是你自己所在的窗口时脚本会先拦住提醒（加 `--force` 才继续，脱钩机制会保证它跑得完）。
 - **风险**：这是改 paseo 的内部状态文件，**跨版本可能变 schema**。脚本会校验，失败就回滚；真要长期用，优先用 paseo 界面里的模型选择器（那里走的是 daemon 的正规接口）。
 - 顺带：**`paseo agent reload` 不会改窗口 ID**（实测），所以它不算"重新生成名片"。
 

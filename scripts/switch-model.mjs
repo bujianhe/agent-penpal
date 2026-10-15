@@ -25,9 +25,32 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { guardMain, paseoRun } from "./lib-paseo.mjs";
 
 const HOME_DIR = os.homedir();
+const SELF = fileURLToPath(import.meta.url);
+const BG_FLAG = "--__bg"; // 内部用：表示"我已经脱钩过了"，不要再脱一次
+
+/**
+ * 我们是不是跑在 paseo daemon 的进程树底下？
+ * 是的话就危险：`paseo daemon stop` 会把它自己的子进程**一起杀掉**（实测：
+ * agent 的 claude 进程就是 daemon 的子进程），脚本会在停 daemon 那一刻被带走，
+ * 永远走不到"起 daemon"—— 结果是把那台机器留在失联状态。
+ */
+function paseoAncestor() {
+  if (process.env.PASEO_AGENT_ID) return "PASEO_AGENT_ID 环境变量";
+  if (process.platform === "win32") return null; // Windows 没有 ps，只能靠上面的环境变量
+  let pid = process.ppid;
+  for (let i = 0; i < 10 && pid && pid !== 1; i++) {
+    const comm = (spawnSync("ps", ["-o", "comm=", "-p", String(pid)], { encoding: "utf8" }).stdout || "").trim();
+    if (/Paseo/i.test(comm)) return `祖先进程「${comm}」(pid ${pid})`;
+    const ppid = (spawnSync("ps", ["-o", "ppid=", "-p", String(pid)], { encoding: "utf8" }).stdout || "").trim();
+    pid = Number(ppid) || 0;
+  }
+  return null;
+}
 
 const HELP = `用法: node switch-model.mjs <窗口ID|前缀> <新模型名> [选项]
   给已建好的对话窗口换模型（不动 LINK / AGENT，不用重新配对）。
@@ -51,6 +74,7 @@ function parseArgs(argv) {
     else if (a === "--dry-run") o.dryRun = true;
     else if (a === "--force") o.force = true;
     else if (a === "--keep-daemon") o.keepDaemon = true;
+    else if (a === BG_FLAG) o.bg = true;
     else if (a === "--help" || a === "-h") o.help = true;
     else if (a.startsWith("--")) {
       console.error(`未知参数: ${a}（--help 看用法）`);
@@ -233,6 +257,31 @@ const main = (args) => {
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+  // 停 daemon 之前，先确保我们不在它的进程树底下 —— 否则脚本会被一起杀掉（见 paseoAncestor 注释）。
+  if (!args.keepDaemon && !args.bg) {
+    const anc = paseoAncestor();
+    if (anc) {
+      const logPath = path.join(home, "switch-model.log");
+      const fd = fs.openSync(logPath, "a");
+      fs.writeSync(fd, `\n===== ${new Date().toISOString()} 从 daemon 子进程脱钩执行 =====\n`);
+      const child = spawn(process.execPath, [SELF, ...process.argv.slice(2), BG_FLAG], {
+        detached: true,
+        stdio: ["ignore", fd, fd],
+        env: process.env,
+      });
+      child.unref();
+      console.log(`\n检测到脚本跑在 paseo daemon 底下（${anc}）。`);
+      console.log("停 daemon 会把它自己的子进程一起杀掉 —— 脚本会在那一刻被带走，永远走不到「起 daemon」。");
+      console.log(`→ 已把活儿转成独立进程继续（pid ${child.pid}），现在断开也不会影响它。`);
+      console.log(`→ 执行日志：${logPath}`);
+      console.log(`\n等大约 20 秒，再回来看：`);
+      console.log(`  paseo agent inspect <窗口ID> --json   # 校验模型换没换`);
+      console.log(`  tail -30 ${logPath}`);
+      return;
+    }
+  }
+
   const backups = [{ file: hit.file, bak: `${hit.file}.bak-${stamp}` }];
   if (creation) backups.push({ file: creation.file, bak: `${creation.file}.bak-${stamp}` });
   for (const b of backups) fs.copyFileSync(b.file, b.bak);
