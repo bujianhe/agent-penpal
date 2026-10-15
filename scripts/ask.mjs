@@ -329,7 +329,35 @@ function resolveLink(args) {
 }
 
 // 群发：每张名片 = 一条独立的「发送→等→拉」流水线，并行跑、各等各的（不是轮询 N 个日志）。
-// 实现上直接把本脚本按单张名片再拉起来（子进程），复用单发现有的 连接检查/发送/拉答复/入册 全套逻辑。
+/**
+ * 从 paseo 日志里切出"本次对话的答复"。
+ *
+ * 为什么不能直接拿 logs --tail 的尾巴：
+ *   ① 对端窗口可能同时在干别的活，尾巴会混进别的任务的内容（实测遇到过：
+ *      拉回来的"答复"整段是它另一个任务的推理）；
+ *   ② 尾巴里常夹 [Thought] 推理块，有时候整段尾巴全是推理，正经答复一个字没有。
+ *
+ * 做法：消息发出去时末尾埋了唯一标记 askMark，这里从标记之后切。
+ * 切出来的片段里优先取"第一个带 [Xxx] 前缀的条目前面"那一截——实测对端回答时
+ * 正文在前、推理在后，这样最干净；切不出来（有的 agent 习惯先想后答）就退回整个
+ * 片段，宁可有噪音也不丢内容。
+ *
+ * ⚠️ 已知局限：paseo 日志里推理块的续行和助手正文**都是无前缀裸行**，无法可靠区分。
+ * 所以这里不做"去推理"的精修，只做"切scope + 优先截断"，保证不丢东西。
+ */
+function extractReply(raw, askMark) {
+  if (!raw || !raw.trim()) return { text: "(没有内容)", scoped: false, noisy: false };
+  const at = raw.indexOf(askMark);
+  const scoped = at !== -1;
+  const body = (scoped ? raw.slice(at + askMark.length) : raw).replace(/^\s*\n/, "").trim();
+  const lines = body.split(/\r?\n/);
+  const cut = lines.findIndex((l) => /^\[[A-Za-z]/.test(l));
+  const head = (cut === -1 ? "" : lines.slice(0, cut).join("\n")).trim();
+  // noisy = 标记之后第一个条目就是 [Xxx]（说明它是先想后答/先调工具），切不出干净前段，只能整段给你
+  return { text: head || body, scoped, noisy: cut !== -1 && !head };
+}
+
+// 群发：实现上直接把本脚本按单张名片再拉起来（子进程），复用单发现有的 连接检查/发送/拉答复/入册 全套逻辑。
 async function fanOut(args, targets, message) {
   const self = fileURLToPath(import.meta.url);
   const cardOf = (t) => `=== PENPAL CARD ===\nNAME=${t.name}\n${t.desc ? `DESC=${t.desc}\n` : ""}LINK=${t.link}\nAGENT=${t.agent}\n==================`;
@@ -529,7 +557,13 @@ function main() {
   // 异步模式：消息尾附一句【说明】——① 我们会来拉取（答复正常放窗口即可）② 对方装了 skill 也可主动发我们（可选）
   const ASYNC_NOTE =
     "\n\n【说明】处理完在本窗口正常回复即可，我会自己来拉取；装了 agent-penpal skill 的话，也可以用上面的名片主动给我发消息（可选）。";
-  const toSend = args.asyncMode && card ? fullMessage + ASYNC_NOTE : fullMessage;
+  const toSend0 = args.asyncMode && card ? fullMessage + ASYNC_NOTE : fullMessage;
+
+  // 在消息末尾埋一个本次唯一的标记，用来把"答复"切出来。
+  // 为什么需要：对端窗口可能同时在干别的活（实测遇到过——拉回来的尾巴全是它另一个任务的推理）。
+  // logs --tail 是无差别截尾巴，不切就会把别人的内容当成答复。
+  const askMark = `【ask:${Math.random().toString(16).slice(2, 8)}】`;
+  const toSend = `${toSend0}\n\n${askMark}`;
 
   if (args.dryRun) {
     console.log("[dry-run] 不会真的发送。将执行：");
@@ -541,7 +575,7 @@ function main() {
       console.log("  2) 不等待——之后用 ask.mjs --replies 拉对方窗口最新内容");
     } else {
       console.log(`  2) 若 timeout：paseo wait ${agent} --timeout 600`);
-      console.log(`  3) paseo logs ${agent} --tail ${args.tail}`);
+      console.log(`  3) paseo logs ${agent} --tail ${args.tail}（从 ${askMark} 之后切答复）`);
     }
     console.log(`消息预览：${toSend.slice(0, 400)}${toSend.length > 400 ? "…" : ""}`);
     return;
@@ -550,26 +584,38 @@ function main() {
   // 连接检查：先 ls 一把——链路不通 / 窗口ID写错，几秒内就能报出来（不然 send 要等 10 分钟超时才现形）
   if (!args.noCheck) {
     console.log(`→ 连接检查（对端 ${agent}）…`);
-    const pre = paseoRun(["ls", "-a", "-g", "--json"], {
-      kind: "host",
-      host: link,
-      timeout: 90 * 1000,
-    });
+    // 走 relay 的链路会抖（实测同一张名片 3 次里能超时 2 次，而第 3 次就通）。
+    // 所以这里重试几次再判死刑——一次超时就说"连不上"是假警报。
+    const CHECK_TRIES = 3;
+    let pre = null;
     let list = null;
-    try {
-      list = JSON.parse(pre.out);
-    } catch {
-      const start = pre.out.indexOf("["); // 输出里可能混了警告行，从第一个 [ 起再试
-      if (start >= 0) {
-        try {
-          list = JSON.parse(pre.out.slice(start));
-        } catch {
-          /* 下面按连接失败处理 */
+    for (let attempt = 1; attempt <= CHECK_TRIES; attempt++) {
+      pre = paseoRun(["ls", "-a", "-g", "--json"], {
+        kind: "host",
+        host: link,
+        timeout: 90 * 1000,
+      });
+      list = null;
+      try {
+        list = JSON.parse(pre.out);
+      } catch {
+        const start = pre.out.indexOf("["); // 输出里可能混了警告行，从第一个 [ 起再试
+        if (start >= 0) {
+          try {
+            list = JSON.parse(pre.out.slice(start));
+          } catch {
+            /* 下面按连接失败处理 */
+          }
         }
+      }
+      if (Array.isArray(list)) break;
+      if (attempt < CHECK_TRIES) {
+        console.log(`  第 ${attempt}/${CHECK_TRIES} 次没连上，2 秒后重试…`);
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000); // 同步睡 2 秒
       }
     }
     if (!Array.isArray(list)) {
-      console.error("连不上对端。可能：对方 daemon 没在跑 / 链接抄错或失效 / 网络或 relay 问题。");
+      console.error(`连不上对端（重试了 ${CHECK_TRIES} 次）。可能：对方 daemon 没在跑 / 链接抄错或失效 / 网络或 relay 问题；relay 链路本身会抖，过一会儿再试也可能就好了。`);
       console.error(pre.out ? `（原始输出：${pre.out.slice(0, 300)}）` : `（无输出，退出码 ${pre.code}）`);
       // 这两个错误的提示语本身有误导性，单独点破，别让人照着去改 relay/网络白折腾
       if (/TARGET_AMBIGUOUS/.test(pre.out)) {
@@ -674,15 +720,21 @@ function main() {
     console.log(w.out || "(wait 无输出)");
   }
 
-  console.log(`\n→ 拉取答复（最后 ${args.tail} 行，末尾最新）：`);
+  console.log(`\n→ 拉取答复（最后 ${args.tail} 行，从 ${askMark} 之后切）：`);
   const logs = paseoRun(["logs", agent, "--tail", String(args.tail)], {
     kind: "host",
     host: link,
     timeout: 120000,
   });
+  const rep = extractReply(logs.out || "", askMark);
   console.log("========== 答复开始 ==========");
-  console.log(logs.out || "(没有内容)");
+  console.log(rep.text);
   console.log("========== 答复结束 ==========");
+  if (!rep.scoped) {
+    console.log("⚠ 日志里没找到本次的标记（对端可能没把消息原样记进去）——上面是原始尾巴，可能含无关内容。");
+  } else if (rep.noisy) {
+    console.log("ℹ 对端是先推理/先调工具再答的，标记之后整段给你了（可能夹着它的推理和工具记录）。");
+  }
 
   if (status === "error") {
     console.error("对方处理时报错（细节见上面日志）。");
