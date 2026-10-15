@@ -72,7 +72,9 @@ node <skill目录>/scripts/setup.mjs --name <本机名字，如 电脑>
 
 一条龙：检查环境（缺 paseo CLI 直接给安装命令）→ 起本地 daemon（已在跑就跳过）→ 生成配对链接 → 定对话窗口（在 Paseo agent 窗口里跑就用**当前会话**；普通终端里跑：**先沿用 `~/.paseo-self-agent` 里已存的对话窗口**——还在就直接用，重复跑不乱开窗；没有才后台新开一个常驻 agent，默认 `--mode bypassPermissions` 授权，否则执行对方请求时第一个工具调用就卡权限审批）→ 坐标写进 `~/.paseo-self-*` → 打印名片。**把名片原样转给用户**，让用户发给对方。
 
-**模型怎么定**（新开窗口时）：`--model` 显式给 > 从本机 `.claude/settings.json` 读（`model` 或 `env.ANTHROPIC_MODEL` 等，最后兜底环境变量）> 都不给才让 paseo 自己决定。**为什么不能全交给 paseo**：它建窗口时用的是**自己内置的 manifest**（按 `defaultPriority` + 本机 Claude Code 版本挑，如 `claude-opus-5-5`），**完全不读 settings.json**——settings.json 里的模型只会被追加进"可选列表"，永远不带 `isDefault`。自建网关/非官方端点下那个原生名多半不存在，窗口就起不来（表现是对方"连不上"）。沿用已有窗口时**不动它的模型**，只把模型名显示出来方便核对；要换用 `switch-model.mjs`（见下）。
+**模型怎么定**（新开窗口时）：`--model` 显式给 > **按 provider 读本机配置** > 都不给才让 paseo 自己决定。目前认两个 provider：`claude` 读项目/用户的 `.claude/settings.json`（顶层 `model`，或 `env.ANTHROPIC_MODEL` 等，最后兜底环境变量），`codex` 读 `~/.codex/config.toml` 的顶层 `model`（注意 codex 的名字没有 Claude Code 那套 `[1M]` 后缀约定）。**其它 provider 不猜**——读不到就不传，宁可交给 paseo。**为什么不能全交给 paseo**：它建窗口时用的是**自己内置的 manifest**（按 `defaultPriority` + 本机 Claude Code 版本挑，如 `claude-opus-5-5`），**不读任何配置文件**——settings.json 里的模型只会被追加进"可选列表"，永远不带 `isDefault`。自建网关/非官方端点下那个原生名多半不存在，窗口就起不来（表现是对方"连不上"）。沿用已有窗口时**不动它的模型**，只把模型名显示出来方便核对；要换用 `switch-model.mjs`（见下）。
+
+**权限模式也是按 provider 的**：`claude` 用 `bypassPermissions`，`codex` 用 `full-access`——模式名各家不一样，写死一个会让别的 provider 直接建不出窗口（`Invalid mode ... Available modes: ...`）。脚本查表给；表里没有的就先不传，失败时报错会列出可用模式，脚本挑一个最像"免审批"的自动重试一次。
 > **一张就够**：对方拿到这张名片发第一条消息时，`ask.mjs` 会自动把它自己的名片附在消息开头——所以对面也拿到了你的坐标，双向就通了。**不需要两边各递一次。**
 
 **名片的一句话介绍（可选，≤200 字）**：内容是**职责**（仓库级——这台机器/这个项目能帮对方处理哪方面问题、什么时候该找你；例：`--desc "有安卓源码和 adb：查安卓构建、抓日志、跑真机测试时找我"`）。不传的话，**首次** setup 会自动从当前目录的 README.md / CLAUDE.md / AGENTS.md 提取一句；都没有才退而用对话窗口标题；生成后固定不变（想刷新：删 `~/.paseo-self-desc` 再跑，或 `--desc` 手动覆盖）。想措辞更贴切，agent 可以先读 README/CLAUDE.md 自己总结一句再传 `--desc`。**拿不准就留空**——宁可没有这行，也别把文档里的示例、或自己猜的职责硬编进去（这行是发给别人看的"你能帮什么"，编错了比空着更糟）。**"当前在处理什么"这类会变的信息别写进静态简介**；需要时用单条覆盖：`ask.mjs --self-desc "当前在处理：XX"`。

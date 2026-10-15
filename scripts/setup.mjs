@@ -8,7 +8,8 @@
  *   2. 确保本地 daemon 在跑（paseo onboard；relay 默认开）→ 生成自己的配对链接
  *   3. 定好"对话窗口"：在 Paseo agent 窗口里跑 = 当前窗口；普通终端里跑 = 后台开一个常驻 agent
  *      （paseo run -d，默认 claude，--provider <任意 ACP provider> 可换，如 codex / cursor / gemini）
- *      模型：显式 --model > 本机 .claude/settings.json 里配的 > paseo 内置默认（--no-model 强制走这个）
+ *      模型：显式 --model > 按 provider 读本机配置（claude→.claude/settings.json，
+ *            codex→.codex/config.toml）> paseo 内置默认（--no-model 强制走这个）
  *   4. 坐标写进 ~/.paseo-self-link / ~/.paseo-self-agent / ~/.paseo-self，打印名片
  *
  * 用法:
@@ -120,6 +121,66 @@ function resolveClaudeModel(cwd) {
   return null;
 }
 
+/**
+ * Codex 的模型在 ~/.codex/config.toml：顶层 `model = "..."`。
+ * 只认出现在第一个 [section] 之前的那一行（profile 里的 model 不参与"默认"）。
+ * 不引 TOML 解析器 —— 我们只要一个字符串键，正则足够，少一个依赖。
+ * 注意 codex 的名字没有 Claude Code 那套 `[1M]` 后缀约定，两边格式本来就不同。
+ */
+function resolveCodexModel() {
+  const file = path.join(HOME_DIR, ".codex", "config.toml");
+  let text;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    if (line.startsWith("[")) break; // 进到 [section] 了，后面的 model 属于那个 section，不算全局默认
+    const m = line.match(/^model\s*=\s*["']([^"']+)["']/);
+    if (m && m[1].trim()) return { model: m[1].trim(), from: `${file} 的 model` };
+  }
+  return null;
+}
+
+/**
+ * 按 provider 分派。**不认识的 provider 返回 null（不乱猜）** ——
+ * 与其把 claude 的模型名塞给 codex/gemini/cursor，不如什么都不传，让 paseo 用它自己的默认，
+ * 并在调用处明确提示"这个 provider 我读不到你的配置，要指定请用 --model"。
+ */
+const PROVIDER_MODEL_READERS = {
+  claude: (cwd) => resolveClaudeModel(cwd),
+  codex: () => resolveCodexModel(),
+};
+
+function resolveProviderModel(provider, cwd) {
+  const base = String(provider || "").split("/")[0]; // 允许写成 claude/xxx 这种
+  const reader = PROVIDER_MODEL_READERS[base];
+  return reader ? reader(cwd) : null;
+}
+
+/**
+ * "免审批"模式名各 provider 不一样（claude 是 bypassPermissions，codex 是 full-access）。
+ * 写死一个会让别的 provider 直接建不出窗口。这里只放**确认过的**；不知道的不传 --mode，
+ * 失败时报错里会列出可用模式，再由 pickBypassMode 挑一个重试。
+ */
+const NO_APPROVAL_MODE = {
+  claude: "bypassPermissions",
+  codex: "full-access",
+};
+
+/** 从一串模式名里挑最像"免审批"的那个 */
+function pickBypassMode(names) {
+  const prefer = ["full-access", "bypassPermissions", "bypass", "dangerous", "yolo", "auto"];
+  for (const p of prefer) {
+    const hit = names.find((n) => n.toLowerCase() === p.toLowerCase());
+    if (hit) return hit;
+  }
+  return names.find((n) => /full|bypass|danger|yolo/i.test(n)) || names[0] || null;
+}
+
 // 首次生成简介用：从仓库的 README/CLAUDE.md/AGENTS.md 里提取第一段有信息量的正文
 //（跳过 frontmatter、标题、徽章/图片、列表项），截到 200 字——纯读取，零模型参与
 function extractRepoBlurb(dir) {
@@ -201,11 +262,13 @@ const HELP = `用法: node setup.mjs [选项]
                      provider，如 codex / cursor / gemini / cline / qwen-code……注意 provider
                      决定的是"paseo 拉起的那个 agent"，用的得是它的命令行工具：
                      cursor 走的是 cursor-agent CLI（不是 Cursor IDE 里的会话）。
-  --model <名字>     新开对话窗口用哪个模型。不给的话自动从本机 Claude Code 配置里读
-                     （项目/用户的 .claude/settings.json 的 model 或 env.ANTHROPIC_MODEL 等，
-                     最后才看环境变量）；都读不到才让 paseo 自己决定。
+  --model <名字>     新开对话窗口用哪个模型。不给的话按 provider 自动读本机配置：
+                       claude → 项目/用户的 .claude/settings.json（顶层 model，或
+                                env.ANTHROPIC_MODEL 等，最后兜底环境变量）
+                       codex  → ~/.codex/config.toml 的顶层 model
+                     其它 provider 我们还不会读，会交给 paseo；要指定就用这个参数。
                      为什么要管这个：paseo 自己决定时会用内置 manifest 挑一个 Claude 原生
-                     名字（如 claude-opus-5-5），**不读 settings.json**。自建网关的环境下那个
+                     名字（如 claude-opus-5-5），**不读任何配置文件**。自建网关的环境下那个
                      名字网关可能不认，窗口就起不来（对方表现为"连不上"）。
   --no-model         完全不传模型，直接用 paseo 内置的默认值（排查对比用）
   --cwd <目录>       新开窗口的工作目录（默认用户主目录）
@@ -286,10 +349,19 @@ function main() {
       `  1) ${daemonRunning ? "（本地 daemon 已在跑，跳过启动）" : `paseo ${onboardArgs.join(" ")}`}`,
     );
     console.log("  2) paseo daemon pair --json   → 本机配对链接");
+    const dryBase = String(args.provider).split("/")[0];
+    const dryMode = NO_APPROVAL_MODE[dryBase];
+    const dryModelHint = args.model
+      ? ` --model ${args.model}`
+      : args.noModel
+        ? ""
+        : Object.prototype.hasOwnProperty.call(PROVIDER_MODEL_READERS, dryBase)
+          ? ` --model <从本机 ${dryBase === "codex" ? ".codex/config.toml" : ".claude/settings.json"} 读到的模型>`
+          : " --model <读不到这个 provider 的配置，不传，交给 paseo>";
     console.log(
       currentWindow
         ? `  3) 对话窗口 = ${args.agent ? "--agent 指定" : "当前 Paseo agent 窗口"}：${currentWindow}（不新开）`
-        : `  3) paseo run -d --json --provider ${args.provider}${args.model ? ` --model ${args.model}` : args.noModel ? "" : " --model <从本机 .claude/settings.json 读到的模型>"} --mode bypassPermissions --title 跨主机联动 --cwd ${args.cwd || HOME_DIR} "<启动语>"`,
+        : `  3) paseo run -d --json --provider ${args.provider}${dryMode ? ` --mode ${dryMode}` : " --mode <paseo 默认>"}${dryModelHint} --title 跨主机联动 --cwd ${args.cwd || HOME_DIR} "<启动语>"`,
     );
     console.log(
       args.home
@@ -437,16 +509,18 @@ function main() {
     if (!reused) {
       const cwd = args.cwd || HOME_DIR;
 
-      // 决定模型：--model 显式 > 本机 cc 配置 > 不传（交给 paseo 内置默认值）。
+      // 决定模型：--model 显式 > 本机 cc/codex 配置 > 不传（交给 paseo 内置默认值）。
       // 中间这条是关键：paseo 默认会挑一个 Claude 原生名字且不看 settings.json，
       // 自建网关环境下可能直接把窗口卡死，所以能读到本机配置就一定显式传过去。
+      const providerBase = String(args.provider).split("/")[0];
+      const providerKnown = Object.prototype.hasOwnProperty.call(PROVIDER_MODEL_READERS, providerBase);
       let modelArg = null;
       let modelNote = "";
       if (args.model) {
         modelArg = args.model;
         modelNote = "--model 指定";
-      } else if (!args.noModel) {
-        const hit = resolveClaudeModel(cwd);
+      } else if (!args.noModel && providerKnown) {
+        const hit = resolveProviderModel(args.provider, cwd);
         if (hit) {
           modelArg = hit.model;
           modelNote = hit.from;
@@ -457,37 +531,56 @@ function main() {
       if (modelArg) {
         console.log(`  模型：${modelArg}`);
         console.log(`       （来自 ${modelNote}）`);
+      } else if (!args.noModel && !providerKnown) {
+        console.log(`  模型：不指定 —— ${providerBase} 的配置我还不会读（目前只认 claude 和 codex）。`);
+        console.log("       交给 paseo 内置默认值。自建网关/非官方端点下那个默认名可能不被认，");
+        console.log("       窗口起来了却联系不上对方时，用 --model <名字> 显式给一个。");
       } else {
-        console.log("  模型：不指定 —— 交给 paseo 内置默认值。");
-        console.log("       它挑的是 Claude 原生名字且不读 settings.json，自建网关下可能不被认；");
-        console.log("       窗口起来了却联系不上对方时，用 --model <名字> 手动给一个。");
+        console.log(`  模型：不指定 —— 本机没读到 ${providerBase} 的模型配置${args.noModel ? "（--no-model）" : ""}。`);
+        console.log("       交给 paseo 内置默认值。它挑的是 Claude 原生名字且不读 settings.json，");
+        console.log("       自建网关下可能不被认；窗口起来了却联系不上对方时，用 --model <名字> 手动给一个。");
       }
 
-      // --mode bypassPermissions：对话窗口的职责就是执行对方请求（adb、查文件…），默认权限模式下第一个
-      // 工具调用就卡审批、把整条对话拖到超时（实测踩到）。链接本来=daemon 全权，这里不新增暴露面。
-      // 注意要用全名 bypassPermissions（inspect 的 AvailableModes 里的规范值，"bypass" 简写不保证认）
-      const runArgs = [
-        "run",
-        "-d",
-        "--json",
-        "--provider",
-        args.provider,
-        "--mode",
-        "bypassPermissions",
-        "--title",
-        "跨主机联动",
-        "--cwd",
-        cwd,
-      ];
-      if (modelArg) runArgs.push("--model", modelArg);
-      runArgs.push(BOOTSTRAP_PROMPT);
-      const r = paseoRun(runArgs, clientOpt({ timeout: 240000 }));
-      const full = (r.all.match(/"agentId"\s*:\s*"([^"]+)"/) || [])[1] || null;
+      // --mode：对话窗口的职责就是执行对方请求（adb、查文件…），默认权限模式下第一个工具调用
+      // 就卡审批、把整条对话拖到超时（实测踩到）。链接本来=daemon 全权，这里不新增暴露面。
+      //
+      // ⚠️ 模式名**各 provider 不一样**：claude 是 bypassPermissions，codex 是 full-access。
+      // 写死一个会让别的 provider 直接建不出窗口（`Invalid mode ... Available modes: ...`）。
+      // 已知的查表；不知道的先不传 --mode，失败且报错里列了可用模式时，挑个最像"免审批"的重试。
+      const modeFor = (providerBase) => NO_APPROVAL_MODE[providerBase] ?? null;
+      const buildRunArgs = (mode) => {
+        const a = ["run", "-d", "--json", "--provider", args.provider];
+        if (mode) a.push("--mode", mode);
+        a.push("--title", "跨主机联动", "--cwd", cwd);
+        if (modelArg) a.push("--model", modelArg);
+        a.push(BOOTSTRAP_PROMPT);
+        return a;
+      };
+
+      let r = paseoRun(buildRunArgs(modeFor(providerBase)), clientOpt({ timeout: 240000 }));
+      let full = (r.all.match(/"agentId"\s*:\s*"([^"]+)"/) || [])[1] || null;
+
+      if (!full) {
+        // paseo 会在报错里列出该 provider 的可用模式，扒出来挑一个重试一次
+        const listed = (r.all.match(/Available modes?:\s*([^\n"\\]+)/i) || [])[1];
+        if (listed) {
+          const names = listed.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+          const retryMode = pickBypassMode(names);
+          const tried = modeFor(providerBase);
+          if (retryMode && retryMode !== tried) {
+            console.log(`  ${providerBase} 的免审批模式名不是「${tried ?? "(未指定)"}」，改用「${retryMode}」重试…`);
+            r = paseoRun(buildRunArgs(retryMode), clientOpt({ timeout: 240000 }));
+            full = (r.all.match(/"agentId"\s*:\s*"([^"]+)"/) || [])[1] || null;
+          }
+        }
+      }
+
       if (!full) {
         console.error("开对话窗口失败（provider 的 agent CLI 装了吗？比如 --provider codex 需要先装 codex）；");
         console.error(`当前用的是 --provider ${args.provider}。换一个本机已经装好的试试，比如 --provider claude / codex；`);
         console.error("paseo 支持的 provider 不止这两个：cursor（需要 cursor-agent CLI）、gemini、cline、qwen-code 等都能填。");
         if (modelArg) console.error(`模型用的是 ${modelArg}（来自 ${modelNote}）——如果是自建网关，确认网关认这个名字。`);
+        console.error(`权限模式用的是「${modeFor(providerBase) ?? "(paseo 默认)"}」——模式名各 provider 不同，报错里若有 "Available modes" 会看到可选项。`);
         console.error(r.all || `（退出码 ${r.code}）`);
         process.exitCode = 1;
         return;
