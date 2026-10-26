@@ -46,7 +46,11 @@ description: 让两台机器上的 agent（Claude Code / Codex / OpenClaw）跨�
 | 本机能直接干（普通问答、本机文件/命令/代码） | **本机干，别进本 skill** |
 | 需要**另一台机器**的信息/硬件/环境（PC 的 adb、服务器上的项目或构建环境、对方的 agent 状态……），或用户点名"问 X" | **远程** → 第二步找坐标，走 ② |
 | **对端已经配对过**（名册里有 / 上下文里有名片），而你正打算 **SSH 进去自己扒日志** | **优先走 A2A（②）**——让那边的 agent 自己查、自己总结，你只要结论。SSH 是**没配对时**的退路，或者确实需要"直接动手"时才用（见下） |
-| 输入是 `/agent-penpal`（不带内容）、"获取名片"、"get my card" | **① 出名片**（默认调用=只读） |
+| 输入是 `/agent-penpal`（不带内容）、`/agent-penpal:create`、"获取名片"、"get my card" | **① 出名片**（默认调用=只读） |
+| 输入是 `/agent-penpal:ask <名字> <消息>` | **② 连接**：按优先级选传法（名字 > 整块名片 > LINK+AGENT） |
+| 输入是 `/agent-penpal:list` | 名册：`ask.mjs --list` |
+| 输入是 `/agent-penpal:replies <名字>` | `ask.mjs --replies --peer <名字>`（异步发完收答复） |
+| 输入是 `/agent-penpal:reset` | **危险操作**（换新链接）：先复述代价、**等用户确认**，再 `setup.mjs --rotate --confirm` |
 | 用户明确说出**唯一口令** `/agent-penpal reset pair`（危险操作；其它任何说法一律不算，包括中文） | 先复述代价并**等用户确认**；确认后才 `setup.mjs --rotate --confirm`（见"链接泄漏了怎么办"） |
 | 输入里直接带名片（±问题）；收到 `【来自X】`+名片的消息 | 名片场景，见下面第二步第 1 条和 ③ |
 
@@ -238,6 +242,18 @@ AGENT=<对话窗口短ID>
 > **一张名片 = 一个「机器 + 会话」**：`LINK` 是那台机器的身份（`paseo daemon pair` 生成，一台一个），`AGENT` 是具体哪个对话窗口。通常每台出一张就够；**同一台机器上想换别的会话参与，就再出一张**（LINK 相同、AGENT 不同）。名册的主键也是 `link|agent`，跟这个一致。
 
 ## 脚本路径写法
+
+**先确定 skill 目录在哪**——两种装法不一样：
+
+```bash
+# 插件市场装的（/plugin install）：版本目录带哈希，取最新的那个
+ls -d ~/.claude/plugins/cache/*/agent-penpal/*/ 2>/dev/null | tail -1
+
+# 手动放的 / npx skills 装的
+ls -d ~/.claude/skills/agent-penpal 2>/dev/null
+```
+
+拿到目录后拼上 `/scripts/setup.mjs` 或 `/scripts/ask.mjs`：
 
 | 环境 | 写法 |
 |---|---|

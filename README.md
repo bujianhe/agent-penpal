@@ -92,6 +92,18 @@ claude plugin marketplace add bujianhe/agent-penpal
 claude plugin install agent-penpal@agent-penpal
 ```
 
+装完有一组短命令，不用记一长串：
+
+| 命令 | 干什么 |
+|---|---|
+| `/agent-penpal:create` | 出名片（可带本机名字：`/agent-penpal:create 电脑`） |
+| `/agent-penpal:ask <名字> <消息>` | 给某台机器发消息并等答复 |
+| `/agent-penpal:list` | 看名册里存过哪些机器 |
+| `/agent-penpal:replies <名字>` | 拉异步答复 |
+| `/agent-penpal:reset` | 换新配对链接（危险操作，会先复述代价再等你确认） |
+
+（不用命令也行——直接说「出张名片」「问一下电脑那边」同样生效。）
+
 **方式四：手动拷目录**——把 `agent-penpal/` 整个放进你的 agent 的 skill 目录（Claude Code 是 `~/.claude/skills/agent-penpal/`）。没 skill 机制的 agent（纯 AGENTS.md / 系统提示）：把 [SKILL.md](SKILL.md) 的正文贴进去一样生效。**完全不需要网络。**
 
 **两边机器都要装。**
@@ -103,8 +115,8 @@ claude plugin install agent-penpal@agent-penpal
 **人只搬一张名片。**
 
 1. **两台机器各装一次**（见上「安装」）
-2. **各自说一句「出张名片」**（或直接 `/agent-penpal`）—— 缺 Node、缺 paseo CLI，agent 自己装齐，把名片递给你。**第一次会稍慢一点**，那是在装依赖。
-3. **把一张名片发给对面**（在对面敲 `/agent-penpal`，后面贴上名片），让它连过来
+2. **各自说一句「出张名片」**（或直接 `/agent-penpal:create`）—— 缺 Node、缺 paseo CLI，agent 自己装齐，把名片递给你。**第一次会稍慢一点**，那是在装依赖。
+3. **把一张名片发给对面**（在对面敲 `/agent-penpal:ask`，后面贴上名片），让它连过来
 
 连上之后**就是双向的**：对面发第一条消息时，**它自己的名片会自动附在消息开头**，所以两台都拿到了对方的坐标——**名片你只需要搬一次**。
 

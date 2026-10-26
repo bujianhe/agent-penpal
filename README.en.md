@@ -92,6 +92,18 @@ claude plugin marketplace add bujianhe/agent-penpal
 claude plugin install agent-penpal@agent-penpal
 ```
 
+It also ships a few short commands (plugin-namespaced):
+
+| Command | What it does |
+|---|---|
+| `/agent-penpal:create` | Print this machine's card (optionally `/agent-penpal:create Mac Mini`) |
+| `/agent-penpal:ask <name> <msg>` | Send a message to another machine and wait for the answer |
+| `/agent-penpal:list` | Show the peers you've saved |
+| `/agent-penpal:replies <name>` | Pull a delayed reply |
+| `/agent-penpal:reset` | Rotate the pairing link (destructive — it states the cost and waits for confirmation) |
+
+(You don't have to use commands — plain "get my card" / "ask the PC" works too.)
+
 **Option 4 — copy the folder** into your agent's skills directory (for Claude Code, `~/.claude/skills/agent-penpal/`). For agents with no skills mechanism (plain AGENTS.md / system prompt), pasting the body of [SKILL.md](SKILL.md) works just as well. **Needs no network at all.**
 
 Install it on **both** machines.
