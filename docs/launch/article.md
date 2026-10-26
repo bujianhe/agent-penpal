@@ -1,4 +1,4 @@
-# 联调时我当了太久人肉快递员，最后让两个 agent 自己聊上了
+# Claude Code / Codex 多 agent 联调：我当了太久人肉快递员，最后让两个 agent 自己聊上了
 
 > 这是给掘金 / CSDN / 知乎的一稿多投版本。发之前请按你**真实的经历**改细节——
 > 编的细节一定会被人问穿，真实的笨拙反而有人信。
@@ -11,7 +11,7 @@
 
 那天结束我意识到，真正写代码的时间不到两小时，剩下的都在给两台机器当消息总线。
 
-更荒诞的是：两边终端里都跑着一个 AI agent，它们本来就会读日志、会分析、会写结论。**我夹在两个会聊天的 agent 中间，手抄它们的对话。**
+更荒诞的是：两边终端里都跑着一个 AI agent——我平时用的就是 **Claude Code** 和 **Codex**，它们本来就会读日志、会分析、会写结论。**我夹在两个会聊天的 agent 中间，手抄它们的对话。**
 
 ---
 
@@ -45,7 +45,7 @@
 npx skills add bujianhe/agent-penpal
 ```
 
-Claude Code / Codex / OpenClaw 都行，另外二十多种 agent 也装得进去。依赖只有 Node 和 paseo CLI，agent 会自己安装依赖。
+**它接的是你已经在用的 agent**——Claude Code、Codex、OpenClaw 都行，另外二十多种也能装进去。不用换工具、不用改工作流，装完还是在你熟悉的终端里干活。依赖只有 Node 和 paseo CLI，agent 会自己安装。
 
 ### 第二步 · 挑一台说"出张名片"
 
@@ -87,4 +87,6 @@ AGENT=9e1e401
 
 我做这个不是因为它技术上多难。恰恰相反，难的是意识到自己在做一件蠢事：两个 agent 明明会聊天，我却手抄了那么久。
 
-如果你也经常在两台机器之间当快递员：https://github.com/bujianhe/agent-penpal
+如果你也经常在两台机器之间当快递员，项目在这儿（MIT 开源，Claude Code / Codex / OpenClaw 都能装）：
+
+**[https://github.com/bujianhe/agent-penpal](https://github.com/bujianhe/agent-penpal)**
