@@ -274,7 +274,8 @@ const HELP = `用法: node ask.mjs <对方LINK> <对方AGENT> "问题……"    
   --from <名字>    来源名，自动加【来自X】前缀（或用环境变量 PASEO_SELF）
   --file <文件>    消息内容从文件读（长文本用）
   --tail <n>       拉答复时取最后 n 行（默认 50；回复文本后面可能跟"思考块"，留点余量）
-  --no-card        本条不附名片（默认每条消息开头自动附：本机 NAME+LINK+AGENT）
+  --no-card        本条不附名片——**仅当用户明确要求不暴露本机身份时**才用。
+                   默认每条消息都附（对方靠它回找你、存名册）
   --self-agent <ID> 名片里的对话窗口ID（默认取 PASEO_SELF_AGENT > 当前窗口 PASEO_AGENT_ID > 文件 ~/.paseo-self-agent）
   --self-desc <文字> 本条消息名片里的一句话介绍（覆盖 ~/.paseo-self-desc；可临时带"当前在处理…"）
   --no-check       跳过发送前的连接检查
