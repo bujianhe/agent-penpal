@@ -39,7 +39,7 @@ import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { guardMain, paseoRun, precheckPaseo } from "./lib-paseo.mjs";
+import { descFileFor, guardMain, paseoRun, precheckPaseo } from "./lib-paseo.mjs";
 
 // 坐标文件兜底：环境变量没设时读这几个文件（Linux 机器上尤其有用——agent 的 shell 非交互、不读 .bashrc；
 // ~/.paseo-self-* 由 setup.mjs 冷启动写好）
@@ -545,7 +545,10 @@ function main() {
       }
       if (selfLink) {
         // DESC 来源：--self-desc 单条覆盖（带"当前在处理…"这类临时信息）> ~/.paseo-self-desc（职责，setup 写的）
-        const selfDesc = args.selfDesc ? String(args.selfDesc).replace(/\s+/g, " ").trim().slice(0, 200) : readFileTrim(FILE_SELF_DESC);
+        // 简介优先用**本窗口**那份（每项目各一份）；全局那份只作兜底
+        const selfDesc = args.selfDesc
+          ? String(args.selfDesc).replace(/\s+/g, " ").trim().slice(0, 200)
+          : readFileTrim(descFileFor(selfAgent)) || readFileTrim(FILE_SELF_DESC);
         card = `=== PENPAL CARD ===\n${from ? `NAME=${from}\n` : ""}${selfDesc ? `DESC=${selfDesc}\n` : ""}LINK=${selfLink}\nAGENT=${selfAgent}\n==================\n`;
       } else {
         console.log("提示：本机链接生成失败（可设 PASEO_SELF_LINK / PASEO_SELF_HOME，或先跑 setup.mjs），本条未附名片。");

@@ -32,7 +32,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { guardMain, paseoRun, precheckPaseo } from "./lib-paseo.mjs";
+import { descFileFor, guardMain, paseoRun, precheckPaseo } from "./lib-paseo.mjs";
 
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ASK_SCRIPT = path.join(SCRIPTS_DIR, "ask.mjs");
@@ -643,17 +643,19 @@ function main() {
     }
   }
 
-  // 名片简介（可选，≤200 字）——职责，**仓库级、首次生成后固定**：
-  //   --desc 手动 > 已存简介文件（不动它）> 首次自动：读 cwd 的 README/CLAUDE.md 提取一句 > 对话窗口标题 > 省略
-  let desc = args.desc ? String(args.desc).replace(/\s+/g, " ").trim().slice(0, 200) : null;
-  const storedDesc = readFileTrim(FILE_SELF_DESC);
-  if (!desc && storedDesc) desc = storedDesc;
-  if (!desc) {
-    desc = extractRepoBlurb(args.cwd || process.cwd());
-    if (!desc && autoWindowTitle && autoWindowTitle !== "跨主机联动") {
-      desc = autoWindowTitle.replace(/\s+/g, " ").trim().slice(0, 200);
-    }
-  }
+  // 名片简介（可选，≤200 字）——职责，**仓库级、每个会话各存一份**：
+  //   --desc 手动 > 本窗口已存的简介（同一会话重复跑不乱变）> 从**当前仓库** README/CLAUDE.md 提取
+  //   > 全局已存（兼容旧版：那可能是别的项目的介绍）> 对话窗口标题 > 省略
+  //
+  // ⚠️ 旧版这里先读全局 FILE_SELF_DESC，导致"在工程 B 跑，拿到的却是工程 A 的描述"。
+  // 现在把"从当前仓库提取"提到全局兜底之前。
+  const descFile = descFileFor(agentId);
+  const clean = (s) => String(s).replace(/\s+/g, " ").trim().slice(0, 200);
+  let desc = args.desc ? clean(args.desc) : null;
+  if (!desc) desc = readFileTrim(descFile);
+  if (!desc) desc = extractRepoBlurb(args.cwd || process.cwd());
+  if (!desc) desc = readFileTrim(FILE_SELF_DESC); // 兼容：旧版只有全局这一份
+  if (!desc && autoWindowTitle && autoWindowTitle !== "跨主机联动") desc = clean(autoWindowTitle);
 
   // 短ID 更好用（对方名片里写短ID，send/logs 都认）：拿全 ID 去 ls 里换一次
   try {
@@ -672,8 +674,12 @@ function main() {
     fs.writeFileSync(FILE_SELF, `${name}\n`, "utf8");
     if (link) fs.writeFileSync(FILE_SELF_LINK, `${link}\n`, "utf8");
     fs.writeFileSync(FILE_SELF_AGENT, `${agentId}\n`, "utf8");
-    // 简介文件：首次生成后就固定（之后跑 setup 不自动重造；想刷新：删掉它再跑，或 --desc 手动覆盖）
-    if (desc) fs.writeFileSync(FILE_SELF_DESC, `${desc}\n`, "utf8");
+    // 简介：按窗口存一份（各项目互不覆盖）；全局那份同步更新，作为"没跑过 setup 的窗口"的兜底
+    // 想刷新本窗口的简介：删掉 ~/.paseo-self-desc.<短ID> 再跑，或用 --desc 手动覆盖
+    if (desc) {
+      fs.writeFileSync(descFile, `${desc}\n`, "utf8");
+      fs.writeFileSync(FILE_SELF_DESC, `${desc}\n`, "utf8");
+    }
   }
 
   // 6. 打印名片与下一步

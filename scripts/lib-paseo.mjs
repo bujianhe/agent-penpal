@@ -275,3 +275,17 @@ export function guardMain(fn) {
     report(err);
   }
 }
+
+/**
+ * 名片简介按**会话窗口**存：`~/.paseo-self-desc.<短ID>`。
+ *
+ * 为什么不能只用一个全局文件：简介是"仓库级"的（这个项目能帮对方做什么），
+ * 而全局那份是全机共用 —— 在工程 A 生成后，去工程 B 再跑 setup 会直接复用 A 的，
+ * 两个会话抢同一份描述（实际踩到过）。
+ *
+ * 短 ID = 去横线后的前 7 位，和 paseo 的 shortId 一致（`9e1e4015-…` → `9e1e401`）。
+ */
+export function descFileFor(agentId) {
+  const key = String(agentId || "").replace(/-/g, "").slice(0, 7) || "default";
+  return path.join(os.homedir(), `.paseo-self-desc.${key}`);
+}
