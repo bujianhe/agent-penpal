@@ -725,17 +725,33 @@ function main() {
   }
 
   console.log(`\n→ 拉取答复（最后 ${args.tail} 行，从 ${askMark} 之后切）：`);
-  const logs = paseoRun(["logs", agent, "--tail", String(args.tail)], {
-    kind: "host",
-    host: link,
-    timeout: 120000,
-  });
-  const rep = extractReply(logs.out || "", askMark);
+  const pull = () =>
+    paseoRun(["logs", agent, "--tail", String(args.tail)], {
+      kind: "host",
+      host: link,
+      timeout: 120000,
+    });
+
+  let rep = extractReply(pull().out || "", askMark);
+
+  // 实测踩到过：对端把活干完了，但那一轮只做了工具调用、没留下最终答复文本 ——
+  // 我们这边拉到的就是空的。等一下再拉一次（agent 可能还在收尾），还空就明确说清楚，
+  // 别让用户以为"对方没理我"。
+  if (rep.scoped && !rep.text.trim()) {
+    console.log("  （这次没拉到文本，等 8 秒再拉一次…）");
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 8000);
+    rep = extractReply(pull().out || "", askMark);
+  }
+
   console.log("========== 答复开始 ==========");
-  console.log(rep.text);
+  console.log(rep.text || "(空)");
   console.log("========== 答复结束 ==========");
   if (!rep.scoped) {
     console.log("⚠ 日志里没找到本次的标记（对端可能没把消息原样记进去）——上面是原始尾巴，可能含无关内容。");
+  } else if (!rep.text.trim() || rep.text.trim() === "(没有内容)" || rep.text.trim() === "(空)") {
+    console.log("⚠ 对端**处理完了但没有留下答复文本**——多半是它只做了工具调用就结束，没写结论。");
+    console.log("  这不是链路断了（消息已经送到）。可以让它补一句，或再发一次：");
+    console.log(`    node ask.mjs --peer "<对方名字>" "刚才那件事，结论是什么？用一句话回我"`);
   } else if (rep.noisy) {
     console.log("ℹ 对端是先推理/先调工具再答的，标记之后整段给你了（可能夹着它的推理和工具记录）。");
   }
